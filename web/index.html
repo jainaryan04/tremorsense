@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>TremorSense</title>
+  <meta name="description" content="On-device tremor severity grading, safety-gated phase-locked haptic cues and a personal medication response curve.">
+  <meta name="theme-color" content="#0f6b4f">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img src="icon.svg" alt="" width="28" height="28">
+      <div>
+        <h1>TremorSense</h1>
+        <p class="sub">Runs entirely on this device</p>
+      </div>
+    </div>
+    <span id="status-pill" class="pill">Stopped</span>
+  </header>
+
+  <main>
+    <section class="card controls">
+      <div class="row">
+        <div class="seg" role="radiogroup" aria-label="Signal source">
+          <button data-source="demo" class="on" role="radio" aria-checked="true">Demo</button>
+          <button data-source="sensors" role="radio" aria-checked="false">Phone sensors</button>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Where the device is">
+          <button data-placement="phone" class="on" role="radio" aria-checked="true">In hand</button>
+          <button data-placement="watch" role="radio" aria-checked="false">On wrist</button>
+        </div>
+      </div>
+      <button id="start" class="primary big">Start monitoring</button>
+      <p id="sensor-note" class="note" hidden></p>
+    </section>
+
+    <section class="card live" aria-live="polite">
+      <div class="grade-wrap">
+        <div id="grade" class="grade">–</div>
+        <div>
+          <div class="label">UPDRS tremor grade</div>
+          <div id="grade-set" class="muted">Waiting for 4 seconds of data</div>
+        </div>
+      </div>
+      <dl class="facts">
+        <div><dt>Activity</dt><dd id="activity">–</dd></div>
+        <div><dt>Tremor type</dt><dd id="ttype">–</dd></div>
+        <div><dt>Frequency</dt><dd id="freq">–</dd></div>
+        <div><dt>Amplitude</dt><dd id="amp">–</dd></div>
+      </dl>
+      <div id="cue-state" class="cue-state">Cues off</div>
+      <canvas id="trace" class="trace" aria-label="Live tremor signal, green lines mark haptic cues"></canvas>
+      <p class="tiny muted">Dominant tremor axis, last 2 s. Green lines mark where a cue was timed.</p>
+    </section>
+
+    <section id="demo-panel" class="card">
+      <h2>Demo patient</h2>
+      <div class="field">
+        <span>Severity</span>
+        <div class="seg grades" role="radiogroup" aria-label="Simulated severity">
+          <button data-grade="0">0</button><button data-grade="1">1</button><button data-grade="2" class="on">2</button><button data-grade="3">3</button><button data-grade="4">4</button>
+        </div>
+      </div>
+      <div class="field">
+        <span>Tremor</span>
+        <div class="seg" role="radiogroup" aria-label="Simulated tremor type">
+          <button data-type="parkinsonian" class="on">Parkinsonian</button><button data-type="essential">Essential</button>
+        </div>
+      </div>
+      <div class="field">
+        <span>Doing</span>
+        <div class="seg wrap" role="radiogroup" aria-label="Simulated activity">
+          <button data-activity="still" class="on">Resting</button><button data-activity="voluntary">Using hand</button><button data-activity="gait">Walking</button><button data-activity="vehicle">In a bus</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Haptic cues</h2>
+      <label class="switch"><input id="haptics" type="checkbox" checked> <span>Phase-locked cues when the safety gate allows</span></label>
+      <div class="field">
+        <span>Cue phase</span>
+        <input id="target" type="range" min="0" max="345" step="15" value="0" aria-label="Target phase in degrees">
+        <output id="target-out">0°</output>
+      </div>
+      <button id="calibrate" class="secondary">Find my best phase</button>
+      <p id="cal-note" class="note">Tries 8 cue phases for 6 s each and keeps the one with the least tremor.</p>
+      <p id="vib-note" class="note" hidden>This browser can't vibrate (iOS Safari). Cues show as a flash instead.</p>
+    </section>
+
+    <section class="card">
+      <h2>Medication response</h2>
+      <button id="dose" class="primary">I took my dose</button>
+      <p id="forecast" class="forecast">Log doses and wear the device for a few hours to see your response curve.</p>
+      <canvas id="medchart" class="medchart" aria-label="Tremor severity over time with fitted medication response"></canvas>
+      <div class="legend">
+        <span><i class="sw dots"></i>Measured</span><span><i class="sw fit"></i>Your fitted curve</span><span><i class="sw dose"></i>Dose</span>
+      </div>
+      <div class="row">
+        <button id="demo-data" class="secondary">Load 3-day demo</button>
+        <button id="export" class="secondary">Export CSV</button>
+        <button id="clear" class="ghost">Clear data</button>
+      </div>
+    </section>
+
+    <p class="disclaimer">Research prototype for an invention disclosure. Not a medical device and not for diagnosis or treatment decisions. The model is trained on simulated signals until clinical data is collected.</p>
+  </main>
+
+  <div id="flash" class="flash" aria-hidden="true"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
