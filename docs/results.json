@@ -1,0 +1,183 @@
+{
+ "note": "All results are on synthetic data from ml/tremorsense/synth.py. Clinical validation is pending.",
+ "classifier": {
+  "test_subjects": 380,
+  "test_hours": 6.111,
+  "test_windows": 22000,
+  "activity_accuracy": 0.99,
+  "severity_accuracy": 0.921,
+  "severity_within_1": 1.0,
+  "severity_macro_f1": 0.919,
+  "type_accuracy": 0.933,
+  "confusion": [
+   [
+    2563,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    1,
+    2311,
+    146,
+    0,
+    0
+   ],
+   [
+    0,
+    77,
+    2215,
+    117,
+    0
+   ],
+   [
+    0,
+    0,
+    187,
+    1841,
+    289
+   ],
+   [
+    0,
+    0,
+    0,
+    129,
+    2121
+   ]
+  ],
+  "conformal": {
+   "alpha": 0.01,
+   "severity_coverage": 0.991,
+   "activity_coverage": 0.99,
+   "mean_severity_set_size": 1.256
+  },
+  "gate": {
+   "threshold": {
+    "false_triggers_per_hour": 936.982,
+    "cues_with_no_tremor_per_hour": 0.0,
+    "cues_while_moving_per_hour": 849.436,
+    "cues_on_slight_tremor_per_hour": 87.545,
+    "over_stimulation_rate": 0.46,
+    "sensitivity": 0.965,
+    "triggers": 12458
+   },
+   "softmax_gate": {
+    "false_triggers_per_hour": 14.073,
+    "cues_with_no_tremor_per_hour": 0.0,
+    "cues_while_moving_per_hour": 4.091,
+    "cues_on_slight_tremor_per_hour": 9.982,
+    "over_stimulation_rate": 0.044,
+    "sensitivity": 0.791,
+    "triggers": 5605
+   },
+   "conformal_gate": {
+    "false_triggers_per_hour": 6.873,
+    "cues_with_no_tremor_per_hour": 0.0,
+    "cues_while_moving_per_hour": 4.418,
+    "cues_on_slight_tremor_per_hour": 2.455,
+    "over_stimulation_rate": 0.014,
+    "sensitivity": 0.949,
+    "triggers": 6662
+   }
+  },
+  "tradeoff": {
+   "softmax_gate": [
+    {
+     "param": 0.5,
+     "fth": 28.309,
+     "sens": 0.988
+    },
+    {
+     "param": 0.6,
+     "fth": 23.073,
+     "sens": 0.93
+    },
+    {
+     "param": 0.7,
+     "fth": 19.473,
+     "sens": 0.868
+    },
+    {
+     "param": 0.8,
+     "fth": 14.073,
+     "sens": 0.791
+    },
+    {
+     "param": 0.9,
+     "fth": 7.691,
+     "sens": 0.669
+    },
+    {
+     "param": 0.95,
+     "fth": 4.909,
+     "sens": 0.553
+    },
+    {
+     "param": 0.99,
+     "fth": 1.636,
+     "sens": 0.267
+    }
+   ],
+   "conformal_gate": [
+    {
+     "param": 0.1,
+     "fth": 28.309,
+     "sens": 0.988
+    },
+    {
+     "param": 0.05,
+     "fth": 20.782,
+     "sens": 0.982
+    },
+    {
+     "param": 0.03,
+     "fth": 15.055,
+     "sens": 0.973
+    },
+    {
+     "param": 0.02,
+     "fth": 11.782,
+     "sens": 0.968
+    },
+    {
+     "param": 0.01,
+     "fth": 6.873,
+     "sens": 0.949
+    },
+    {
+     "param": 0.005,
+     "fth": 5.073,
+     "sens": 0.929
+    }
+   ]
+  },
+  "threshold_baseline_log_power": 2.822,
+  "params": {
+   "activity": 1268,
+   "severity": 1285,
+   "type": 370
+  },
+  "model_kb": 28.476
+ },
+ "phase": {
+  "subjects": 60,
+  "seconds_each": 60,
+  "actuator_latency_ms": 40.0,
+  "plv_phase_locked_mean": 0.829,
+  "plv_open_loop_mean": 0.177,
+  "timing_jitter_ms_median": 14.262,
+  "frequency_error_hz_mean": 0.189
+ },
+ "medcurve": {
+  "patients": 100,
+  "fit_days": 2,
+  "forecast_day": 3,
+  "curve_r_personal_median": 0.999,
+  "curve_r_population_median": 0.964,
+  "wearing_off_mae_min_personal": 6.782,
+  "wearing_off_mae_min_population": 44.067,
+  "wearing_off_within_30min_personal": 0.98,
+  "doses_scored": 400
+ }
+}
