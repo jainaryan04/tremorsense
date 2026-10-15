@@ -1,9 +1,9 @@
 name: Deploy app to GitHub Pages
 
+# Manual only. A Pages site is public even when the repository is private, and
+# publishing the app before the patent application is filed could count as a
+# public disclosure of the invention. Run this only once filing is done.
 on:
-  push:
-    branches: [main]
-    paths: ["web/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
