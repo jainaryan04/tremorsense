@@ -6,7 +6,7 @@
   "test_windows": 22000,
   "activity_accuracy": 0.99,
   "severity_accuracy": 0.921,
-  "severity_within_1": 1.0,
+  "severity_within_1": 1,
   "severity_macro_f1": 0.919,
   "type_accuracy": 0.933,
   "confusion": [
@@ -55,7 +55,7 @@
   "gate": {
    "threshold": {
     "false_triggers_per_hour": 936.982,
-    "cues_with_no_tremor_per_hour": 0.0,
+    "cues_with_no_tremor_per_hour": 0,
     "cues_while_moving_per_hour": 849.436,
     "cues_on_slight_tremor_per_hour": 87.545,
     "over_stimulation_rate": 0.46,
@@ -64,7 +64,7 @@
    },
    "softmax_gate": {
     "false_triggers_per_hour": 14.073,
-    "cues_with_no_tremor_per_hour": 0.0,
+    "cues_with_no_tremor_per_hour": 0,
     "cues_while_moving_per_hour": 4.091,
     "cues_on_slight_tremor_per_hour": 9.982,
     "over_stimulation_rate": 0.044,
@@ -73,7 +73,7 @@
    },
    "conformal_gate": {
     "false_triggers_per_hour": 6.873,
-    "cues_with_no_tremor_per_hour": 0.0,
+    "cues_with_no_tremor_per_hour": 0,
     "cues_while_moving_per_hour": 4.418,
     "cues_on_slight_tremor_per_hour": 2.455,
     "over_stimulation_rate": 0.014,
@@ -163,7 +163,7 @@
  "phase": {
   "subjects": 60,
   "seconds_each": 60,
-  "actuator_latency_ms": 40.0,
+  "actuator_latency_ms": 40,
   "plv_phase_locked_mean": 0.829,
   "plv_open_loop_mean": 0.177,
   "timing_jitter_ms_median": 14.262,
@@ -179,5 +179,14 @@
   "wearing_off_mae_min_population": 44.067,
   "wearing_off_within_30min_personal": 0.98,
   "doses_scored": 400
+ },
+ "latency": {
+  "runtime": "Node v22.22.0 (V8, the engine in Chrome for Android), measured on a server CPU; expect a phone to be several times slower",
+  "decision_ms_median": 0.35,
+  "decision_ms_p99": 0.783,
+  "phase_tracker_us_per_sample": 0.54,
+  "window_s": 4,
+  "decisions_per_s": 1,
+  "end_to_end_decision_latency_note": "A decision uses the last 4 s of signal; compute adds the time above."
  }
 }
