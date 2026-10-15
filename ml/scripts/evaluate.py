@@ -229,6 +229,17 @@ def eval_phase(n_subj=60, secs=60, latency=0.04, seed=11):
             "frequency_error_hz_mean": r3(np.mean(f_err))}
 
 
+def wearing_off_true(t_from, doses, truth, horizon_h=8.0, frac=0.5):
+    t = np.arange(t_from, t_from + horizon_h, medcurve.DT_H)
+    t_all = np.arange(min(doses) - medcurve.DT_H, t_from + horizon_h, medcurve.DT_H)
+    s = truth(t_all, doses)[-len(t):]
+    i = int(np.argmin(s))
+    s0 = truth(np.array([min(doses) - 1.0]), doses)[0]
+    thr = s[i] + frac * (s0 - s[i])
+    after = np.where(s[i:] >= thr)[0]
+    return None if len(after) == 0 else float(t[i + after[0]])
+
+
 def eval_medcurve(n_pat=100, seed=5):
     rng = np.random.default_rng(seed)
     pop = np.array([1.5, 0.8, 1.8, 0.5, 2.8])  # population prior (= fit initial guess)
@@ -243,7 +254,14 @@ def eval_medcurve(n_pat=100, seed=5):
             for h0 in (7, 11, 15, 19):
                 doses.append(day * 24 + h0 + rng.normal(scale=0.4))
         doses = np.array(doses)
-        s_true = medcurve.severity(t, doses, true)
+        # The simulated patient deliberately differs from the fitted model:
+        # half-life 1-2.5 h (fit assumes 1.5 h), Hill slope 2-5 (fit assumes 3),
+        # and a slow daily drift in baseline tremor that the model lacks.
+        ke = math.log(2) / rng.uniform(1.0, 2.5)
+        gamma = rng.uniform(2.0, 5.0)
+        drift = 0.25 * np.sin(2 * np.pi * (t - rng.uniform(0, 24)) / 24)
+        truth = lambda tt, dd: medcurve.severity(tt, dd, true, ke=ke, gamma=gamma)
+        s_true = truth(t, doses) + drift
         obs = s_true + rng.normal(scale=0.45, size=len(t))
         obs[rng.random(len(t)) < 0.4] = np.nan          # not still -> no reading
         obs[(np.mod(t, 24) < 6) | (np.mod(t, 24) > 23)] = np.nan  # asleep
@@ -255,7 +273,7 @@ def eval_medcurve(n_pat=100, seed=5):
         rs.append(np.corrcoef(s_fit[day3], s_true[day3])[0, 1])
         rs_pop.append(np.corrcoef(s_pop[day3], s_true[day3])[0, 1])
         for d in doses[doses >= 48]:
-            wo_true = medcurve.wearing_off_time(d, doses[doses <= d], true)
+            wo_true = wearing_off_true(d, doses[doses <= d], truth)
             wo_fit = medcurve.wearing_off_time(d, doses[doses <= d], p)
             wo_pop = medcurve.wearing_off_time(d, doses[doses <= d], pop)
             if None not in (wo_true, wo_fit, wo_pop):
@@ -280,6 +298,7 @@ def eval_medcurve(n_pat=100, seed=5):
     fig.savefig(os.path.join(FIG, "medcurve.png"), dpi=200)
     plt.close(fig)
     return {"patients": n_pat, "fit_days": 2, "forecast_day": 3,
+            "model_mismatch": "true half-life 1-2.5 h, Hill slope 2-5, +-0.25 daily baseline drift; fit assumes fixed 1.5 h and 3",
             "curve_r_personal_median": r3(np.median(rs)), "curve_r_population_median": r3(np.median(rs_pop)),
             "wearing_off_mae_min_personal": r3(np.mean(mae_fit)),
             "wearing_off_mae_min_population": r3(np.mean(mae_pop)),

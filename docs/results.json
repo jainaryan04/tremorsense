@@ -173,11 +173,12 @@
   "patients": 100,
   "fit_days": 2,
   "forecast_day": 3,
-  "curve_r_personal_median": 0.999,
-  "curve_r_population_median": 0.964,
-  "wearing_off_mae_min_personal": 6.782,
-  "wearing_off_mae_min_population": 44.067,
-  "wearing_off_within_30min_personal": 0.98,
+  "model_mismatch": "true half-life 1-2.5 h, Hill slope 2-5, +-0.25 daily baseline drift; fit assumes fixed 1.5 h and 3",
+  "curve_r_personal_median": 0.975,
+  "curve_r_population_median": 0.914,
+  "wearing_off_mae_min_personal": 29.635,
+  "wearing_off_mae_min_population": 51.92,
+  "wearing_off_within_30min_personal": 0.59,
   "doses_scored": 400
  },
  "latency": {

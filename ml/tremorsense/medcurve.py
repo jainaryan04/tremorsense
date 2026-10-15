@@ -32,13 +32,13 @@ UPPER = np.array([6.0, 4.0, 4.0, 2.0, 4.5])
 INIT = np.array([1.5, 0.8, 1.8, 0.5, 2.8])
 
 
-def plasma(t_h: np.ndarray, doses_h: np.ndarray, ka: float) -> np.ndarray:
+def plasma(t_h: np.ndarray, doses_h: np.ndarray, ka: float, ke: float = KE) -> np.ndarray:
     c = np.zeros_like(t_h)
-    k = ka / (ka - KE) if abs(ka - KE) > 1e-6 else 1.0
+    k = ka / (ka - ke) if abs(ka - ke) > 1e-6 else 1.0
     for td in doses_h:
         d = t_h - td
         m = d > 0
-        c[m] += k * (np.exp(-KE * d[m]) - np.exp(-ka * d[m]))
+        c[m] += k * (np.exp(-ke * d[m]) - np.exp(-ka * d[m]))
     return c
 
 
@@ -50,11 +50,13 @@ def effect_site(c: np.ndarray, ke0: float) -> np.ndarray:
     return ce
 
 
-def severity(t_h, doses_h, params) -> np.ndarray:
+def severity(t_h, doses_h, params, ke: float = KE, gamma: float = GAMMA) -> np.ndarray:
+    """ke and gamma are fixed in the fitted model; the evaluation varies them
+    in the simulated 'true' patients to test robustness to model mismatch."""
     ka, ke0, emax, ec50, s0 = params
-    ce = effect_site(plasma(t_h, doses_h, ka), ke0)
-    ceg = np.power(np.maximum(ce, 0), GAMMA)
-    return s0 - emax * ceg / (ec50 ** GAMMA + ceg)
+    ce = effect_site(plasma(t_h, doses_h, ka, ke), ke0)
+    ceg = np.power(np.maximum(ce, 0), gamma)
+    return s0 - emax * ceg / (ec50 ** gamma + ceg)
 
 
 def fit(t_h: np.ndarray, obs: np.ndarray, doses_h: np.ndarray, t_grid: np.ndarray | None = None):
