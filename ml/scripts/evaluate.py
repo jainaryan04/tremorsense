@@ -19,9 +19,10 @@ from tremorsense import conformal, dsp, medcurve, synth
 from tremorsense.model import load_bundle
 from tremorsense.phase import CueScheduler, PhaseTracker, circular_stats
 
+from scripts.style import CMAP_COUNTS, CUE_WORD, DOSE_WORD, FIG, GREEN, GREY, LIGHT, ORANGE, ls
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-FIG = os.path.join(ROOT, "docs", "figures")
 STILL = synth.ACTIVITIES.index("still")
 
 
@@ -118,8 +119,8 @@ def eval_classifier():
         ok = np.array([conformal.gate(pa[i], ps_all[i], qa, qs)[0] for i in range(n)]) > 0
         curve["conformal_gate"].append({"param": a, "fth": r3((ok & ~should).sum() / hours), "sens": r3((ok & should).sum() / should.sum())})
     fig, ax = plt.subplots(figsize=(4.6, 3.4))
-    for k, c, lab in [("softmax_gate", "#999", "Softmax confidence gate"), ("conformal_gate", "#2a6", "Conformal gate (ours)")]:
-        ax.plot([r["fth"] for r in curve[k]], [100 * r["sens"] for r in curve[k]], "o-", color=c, label=lab)
+    for k, c, m, lab in [("softmax_gate", GREY, "s", "Softmax confidence gate"), ("conformal_gate", GREEN, "o", "Conformal gate (ours)")]:
+        ax.plot([r["fth"] for r in curve[k]], [100 * r["sens"] for r in curve[k]], marker=m, ls=ls(0 if k == "conformal_gate" else 1), color=c, label=lab)
     ax.set_xlabel("False cues per hour")
     ax.set_ylabel("Cues delivered when needed (%)")
     ax.set_title("Safety vs. responsiveness")
@@ -130,7 +131,7 @@ def eval_classifier():
 
     cm = confusion_matrix(g, yhat, labels=[0, 1, 2, 3, 4])
     fig, ax = plt.subplots(figsize=(4.2, 3.6))
-    ax.imshow(cm, cmap="Blues")
+    ax.imshow(cm, cmap=CMAP_COUNTS)
     for i in range(5):
         for j in range(5):
             ax.text(j, i, cm[i, j], ha="center", va="center", color="white" if cm[i, j] > cm.max() / 2 else "black", fontsize=9)
@@ -144,9 +145,9 @@ def eval_classifier():
     fig, axs = plt.subplots(1, 2, figsize=(7.5, 3.0))
     names = {"threshold": "Fixed threshold", "softmax_gate": "Softmax gate", "conformal_gate": "Conformal gate"}
     keys = list(policies)
-    axs[0].bar([names[k] for k in keys], [gate_rows[k]["false_triggers_per_hour"] for k in keys], color=["#999", "#bbb", "#2a6"])
+    axs[0].bar([names[k] for k in keys], [gate_rows[k]["false_triggers_per_hour"] for k in keys], color=[GREY, LIGHT, GREEN], edgecolor="black", lw=0.5)
     axs[0].set_title("False cues per hour")
-    axs[1].bar([names[k] for k in keys], [100 * gate_rows[k]["over_stimulation_rate"] for k in keys], color=["#999", "#bbb", "#2a6"])
+    axs[1].bar([names[k] for k in keys], [100 * gate_rows[k]["over_stimulation_rate"] for k in keys], color=[GREY, LIGHT, GREEN], edgecolor="black", lw=0.5)
     axs[1].set_title("Over-stimulation (% of cues)")
     for a in axs:
         a.tick_params(axis="x", labelsize=8)
@@ -213,13 +214,13 @@ def eval_phase(n_subj=60, secs=60, latency=0.04, seed=11):
     sig = acc @ np.linalg.svd(acc, full_matrices=False)[2][0]
     fig, ax = plt.subplots(figsize=(7.5, 2.6))
     sl = (t > 20) & (t < 22)
-    ax.plot(t[sl], sig[sl], lw=1.2, label="Tremor (dominant axis)")
+    ax.plot(t[sl], sig[sl], lw=1.2, color=GREY if CUE_WORD == "shaded" else None, label="Tremor (dominant axis)")
     for i in fires:
         if 20 < t[i] + 0.04 < 22:
-            ax.axvline(t[i] + 0.04, color="#2a6", lw=1, alpha=0.8)
+            ax.axvline(t[i] + 0.04, color=GREEN, lw=1, alpha=0.8)
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("m/s²")
-    ax.set_title("Phase-locked cues (green) land at the same point of every tremor cycle")
+    ax.set_title(f"Phase-locked cues ({'black lines' if CUE_WORD == 'shaded' else 'green'}) land at the same point of every tremor cycle")
     fig.tight_layout()
     fig.savefig(os.path.join(FIG, "phase.png"), dpi=200)
     plt.close(fig)
@@ -286,12 +287,12 @@ def eval_medcurve(n_pat=100, seed=5):
     sl = (t >= 46) & (t <= 66)
     ax.plot(t[sl], obs[sl], ".", ms=1.5, color="#bbb", label="Per-minute severity (noisy)")
     ax.plot(t[sl], s_true[sl], color="#333", lw=1.2, label="True response")
-    ax.plot(t[sl], s_fit[sl], color="#2a6", lw=1.6, ls="--", label="Fitted on days 1-2, forecast day 3")
+    ax.plot(t[sl], s_fit[sl], color=GREEN, lw=1.6, ls="--", label="Fitted on days 1-2, forecast day 3")
     for d in doses:
         if 46 <= d <= 66:
-            ax.axvline(d, color="#c60", lw=0.8)
+            ax.axvline(d, color=ORANGE, lw=0.8)
     ax.axvline(48, color="k", lw=0.6, ls=":")
-    ax.set_xlabel("Hours since start (orange = dose button)")
+    ax.set_xlabel(f"Hours since start ({DOSE_WORD} = dose button)")
     ax.set_ylabel("UPDRS tremor")
     ax.legend(fontsize=7, loc="upper right")
     fig.tight_layout()

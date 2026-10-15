@@ -18,15 +18,14 @@ from tremorsense import conformal, dsp, medcurve, synth
 from tremorsense.model import load_bundle
 from tremorsense.phase import CueScheduler, PhaseTracker
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-FIG = os.path.join(ROOT, "docs", "figures")
-GREEN, ORANGE, GREY, BLUE, RED = "#0f8a5f", "#c26a1b", "#888888", "#2f6db5", "#b5392f"
-GRADE_COLORS = ["#9aa5a0", "#6fb59a", "#2f8f6b", "#d08a3a", "#b5392f"]
+from scripts.style import (BAR_EDGE, BLUE, CMAP, CUE_WORD, EDGE, FIG, FILL, FILL_DECIDE, FILL_GO, FILL_IO, FILL_STOP,
+                           GRADE_COLORS, GREEN, GREY, HATCH, LIGHT, ORANGE, RED, ROOT, ls)
 plt.rcParams.update({"font.size": 9, "axes.spines.top": False, "axes.spines.right": False})
 
 
 def save(fig, name):
     fig.tight_layout()
+    os.makedirs(FIG, exist_ok=True)
     fig.savefig(os.path.join(FIG, name), dpi=200)
     plt.close(fig)
 
@@ -45,7 +44,7 @@ def fig_signals(rng):
     for ax, act, lab in zip(axs, synth.ACTIVITIES, ["Resting (grade 2 Parkinsonian tremor)", "Using the hand (same patient)", "Walking (same patient)", "Riding in a vehicle (same patient)"]):
         acc, gyro, _ = synth.window(s, 2, act, rng)
         for i, c in enumerate([BLUE, GREEN, ORANGE]):
-            ax.plot(t, acc[:, i], lw=0.8, color=c, label="xyz"[i])
+            ax.plot(t, acc[:, i], lw=0.8, color=c, ls=ls(i), label="xyz"[i])
         ax.set_title(lab, fontsize=9, loc="left")
         ax.set_ylabel("m/s²")
     axs[0].legend(ncol=3, fontsize=7, loc="upper right")
@@ -59,12 +58,12 @@ def fig_spectra(rng):
     s.f0, s.ttype = 5.0, "parkinsonian"
     for g in range(5):
         P = np.mean([dsp.psd_trace(synth.window(s, g, "still", rng)[0]) for _ in range(10)], axis=0)
-        axs[0].semilogy(dsp.FREQS, P + 1e-6, color=GRADE_COLORS[g], label=f"Grade {g}")
+        axs[0].semilogy(dsp.FREQS, P + 1e-6, color=GRADE_COLORS[g], ls=ls(g), label=f"Grade {g}")
     axs[0].set_title("Spectrum grows with UPDRS grade")
-    for ttype, f0, c in [("parkinsonian", 5.0, GREEN), ("essential", 8.5, ORANGE)]:
+    for k, (ttype, f0, c) in enumerate([("parkinsonian", 5.0, GREEN), ("essential", 8.5, ORANGE)]):
         s.ttype, s.f0 = ttype, f0
         P = np.mean([dsp.psd_trace(synth.window(s, 2, "still", rng)[0]) for _ in range(10)], axis=0)
-        axs[1].semilogy(dsp.FREQS, P + 1e-6, color=c, label=ttype.capitalize())
+        axs[1].semilogy(dsp.FREQS, P + 1e-6, color=c, ls=ls(k), label=ttype.capitalize())
     axs[1].axvspan(*dsp.BAND_PD, color=GREEN, alpha=0.08)
     axs[1].axvspan(*dsp.BAND_ET, color=ORANGE, alpha=0.08)
     axs[1].set_title("Parkinsonian vs essential tremor")
@@ -110,7 +109,7 @@ def fig_features(z):
     axs[0].set_xlabel("UPDRS grade")
     fp = z["X"][:, dsp.FEATURE_NAMES.index("f_peak")]
     axs[1].hist(fp[still & (z["type"] == 1)], bins=40, color=GREEN, alpha=0.6, label="Parkinsonian")
-    axs[1].hist(fp[still & (z["type"] == 2)], bins=40, color=ORANGE, alpha=0.6, label="Essential")
+    axs[1].hist(fp[still & (z["type"] == 2)], bins=40, color=ORANGE, alpha=0.6, hatch=HATCH, edgecolor=EDGE, label="Essential")
     axs[1].set_title("Peak frequency by tremor type")
     axs[1].set_xlabel("Hz")
     axs[1].legend(fontsize=7)
@@ -131,7 +130,7 @@ def fig_confusions(z, scaler, heads):
         (axs[1], confusion_matrix(z["type"][still_t] - 1, pt), ["Parkinsonian", "Essential"], "Tremor type"),
     ]:
         cmn = cm / cm.sum(1, keepdims=True)
-        ax.imshow(cmn, cmap="Greens", vmin=0, vmax=1)
+        ax.imshow(cmn, cmap=CMAP, vmin=0, vmax=1)
         for i in range(len(labels)):
             for j in range(len(labels)):
                 ax.text(j, i, f"{100 * cmn[i, j]:.1f}%", ha="center", va="center", fontsize=7.5, color="white" if cmn[i, j] > 0.5 else "black")
@@ -191,7 +190,7 @@ def fig_placement(z, scaler, heads):
     w1 = [100 * np.mean(np.abs(yhat[m] - y[m]) <= 1) for _, m in groups]
     x = np.arange(len(groups))
     ax.bar(x - 0.2, acc, 0.4, color=GREEN, label="Exact grade")
-    ax.bar(x + 0.2, w1, 0.4, color="#9fd3bd", label="Within ±1")
+    ax.bar(x + 0.2, w1, 0.4, color=LIGHT, edgecolor=BAR_EDGE, label="Within ±1")
     for i, v in enumerate(acc):
         ax.text(i - 0.2, v + 1, f"{v:.0f}", ha="center", fontsize=7)
     ax.set_xticks(x, [g for g, _ in groups])
@@ -262,9 +261,9 @@ def fig_session(scaler, heads, bundle, rng):
         x0 += secs
     axs[1].step(t, tg, where="post", color="k", lw=1, label="True grade")
     axs[1].fill_between(t, np.array(lo) - 0.15, np.array(hi) + 0.15, step="post", color=GREEN, alpha=0.2, label="Conformal grade set")
-    axs[1].step(t, grades, where="post", color=GREEN, lw=1, label="Predicted grade")
+    axs[1].step(t, grades, where="post", color=GREEN, lw=1, ls=ls(1), label="Predicted grade")
     moving = np.array([v != "still" for v in ta])
-    axs[1].fill_between(t, -0.5, 4.5, where=moving, color=ORANGE, alpha=0.08, step="post", label="Moving (grade not used)")
+    axs[1].fill_between(t, -0.5, 4.5, where=moving, color=ORANGE, alpha=0.08, hatch=HATCH, step="post", label="Moving (grade not used)")
     axs[1].set_ylim(-0.5, 4.5)
     axs[1].set_ylabel("UPDRS grade")
     axs[1].legend(fontsize=6.5, ncol=4, loc="upper left")
@@ -313,7 +312,7 @@ def fig_phase(rng):
     ax = fig.add_subplot(1, 3, 3)
     tt, est, ft = conv
     ax.plot(tt, ft, color="k", lw=1, label="True frequency")
-    ax.plot(tt, est, color=GREEN, lw=1, label="Tracked")
+    ax.plot(tt, est, color=GREEN, lw=1, ls=ls(1), label="Tracked")
     ax.set_xlim(0, 20)
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Hz")
@@ -334,7 +333,7 @@ def fig_timing_diagram():
         ax.axvspan((t_hit) * 1000, (t_hit + 1 / (3 * f) * 0.5) * 1000, color=GREEN, alpha=0.25)
         ax.annotate("", xy=(t_hit * 1000, 1.25), xytext=((t_hit - L) * 1000, 1.25), arrowprops=dict(arrowstyle="->", color=ORANGE))
         ax.plot([(t_hit - L) * 1000] * 2, [-1.1, 1.3], color=ORANGE, lw=0.8, ls="--")
-    ax.text(10, 1.45, "command sent (dashed) one latency L before the target phase; motor pulse (green) ≤ ⅓ cycle", fontsize=8)
+    ax.text(10, 1.45, f"command sent (dashed) one latency L before the target phase; motor pulse ({CUE_WORD}) ≤ ⅓ cycle", fontsize=8)
     ax.set_ylim(-1.3, 1.7)
     ax.set_xlabel("Time (ms)")
     ax.set_yticks([])
@@ -406,7 +405,7 @@ def fig_med_eval(rng):
     save(fig, "medcurve_correlation.png")
 
 
-def box(ax, x, y, w, h, text, fc="#eef6f2", ec=GREEN, fs=8, bold=False):
+def box(ax, x, y, w, h, text, fc=FILL, ec=GREEN, fs=8, bold=False):
     ax.add_patch(FancyBboxPatch((x - w / 2, y - h / 2), w, h, boxstyle="round,pad=0.3,rounding_size=0.8", fc=fc, ec=ec, lw=1.2))
     ax.text(x, y, text, ha="center", va="center", fontsize=fs, weight="bold" if bold else "normal")
 
@@ -423,27 +422,27 @@ def arrow(ax, x1, y1, x2, y2, label=None, side=0.8):
 def fig_gate_flowchart():
     fig, ax = plt.subplots(figsize=(7.2, 7.2))
     ax.set_xlim(0, 100); ax.set_ylim(0, 100); ax.axis("off")
-    box(ax, 50, 94, 60, 7, "Window probabilities p_activity, p_grade", fc="#f3f3f3", ec="#666", bold=True)
+    box(ax, 50, 94, 60, 7, "Window probabilities p_activity, p_grade", fc=FILL_IO, ec="#666", bold=True)
     arrow(ax, 50, 90.5, 50, 85.5)
     box(ax, 50, 81, 66, 8, "Activity set A = {k : 1 − p_k ≤ q̂_act}\nGrade set S = contiguous {k : 1 − p_k ≤ q̂_sev}")
     arrow(ax, 50, 77, 50, 72)
-    box(ax, 50, 68, 34, 7, "Is A exactly {still}?", fc="#fff3e3", ec=ORANGE)
+    box(ax, 50, 68, 34, 7, "Is A exactly {still}?", fc=FILL_DECIDE, ec=ORANGE)
     arrow(ax, 67, 68, 82, 68, "no", side=-3)
-    box(ax, 89, 68, 18, 7, "No cue\n(moving)", fc="#fbe9e7", ec=RED)
+    box(ax, 89, 68, 18, 7, "No cue\n(moving)", fc=FILL_STOP, ec=RED)
     arrow(ax, 50, 64.5, 50, 58.5, "yes")
-    box(ax, 50, 55, 34, 7, "max(S) − min(S) ≤ 1 ?", fc="#fff3e3", ec=ORANGE)
+    box(ax, 50, 55, 34, 7, "max(S) − min(S) ≤ 1 ?", fc=FILL_DECIDE, ec=ORANGE)
     arrow(ax, 67, 55, 82, 55, "no", side=-3)
-    box(ax, 89, 55, 18, 7, "No cue\n(uncertain)", fc="#fbe9e7", ec=RED)
+    box(ax, 89, 55, 18, 7, "No cue\n(uncertain)", fc=FILL_STOP, ec=RED)
     arrow(ax, 50, 51.5, 50, 45.5, "yes")
-    box(ax, 50, 42, 34, 7, "min(S) ≥ 2 ?", fc="#fff3e3", ec=ORANGE)
+    box(ax, 50, 42, 34, 7, "min(S) ≥ 2 ?", fc=FILL_DECIDE, ec=ORANGE)
     arrow(ax, 67, 42, 82, 42, "no", side=-3)
-    box(ax, 89, 42, 18, 7, "No cue\n(mild)", fc="#f3f3f3", ec="#666")
+    box(ax, 89, 42, 18, 7, "No cue\n(mild)", fc=FILL_IO, ec="#666")
     arrow(ax, 50, 38.5, 50, 32.5, "yes")
     box(ax, 50, 29, 46, 7, "Candidate intensity I = min(S)")
     arrow(ax, 50, 25.5, 50, 19.5)
-    box(ax, 50, 16, 52, 7, "2 of last 3 decisions positive?\nuse weakest agreeing intensity", fc="#fff3e3", ec=ORANGE)
+    box(ax, 50, 16, 52, 7, "2 of last 3 decisions positive?\nuse weakest agreeing intensity", fc=FILL_DECIDE, ec=ORANGE)
     arrow(ax, 50, 12.5, 50, 7.5)
-    box(ax, 50, 4, 52, 6, "Enable phase-locked cues at intensity I", fc="#e2f3ec", ec=GREEN, bold=True)
+    box(ax, 50, 4, 52, 6, "Enable phase-locked cues at intensity I", fc=FILL_GO, ec=GREEN, bold=True)
     ax.text(3, 30, "Guarantee:\nif the true grade is in S\n(probability ≥ 1 − α),\nthen I ≤ true grade.", fontsize=8, color=GREEN)
     save(fig, "gate_flowchart.png")
 
@@ -458,11 +457,11 @@ def fig_user_flow():
         arrow(ax, a[0] + 7.5, 33, b[0] - 7.5, 33)
     steps2 = [(28, "Tap 'I took\nmy dose'"), (46, "Per-minute\nseverity while\nstill"), (64, "Personal curve\nfitted on device"), (84, "Wear-off\nforecast and\nearly warning")]
     for x, t in steps2:
-        box(ax, x, 10, 15, 13, t, fs=7.5, fc="#fff3e3", ec=ORANGE)
+        box(ax, x, 10, 15, 13, t, fs=7.5, fc=FILL_DECIDE, ec=ORANGE)
     for a, b in zip(steps2, steps2[1:]):
         arrow(ax, a[0] + 7.5, 10, b[0] - 7.5, 10)
     arrow(ax, 64, 26.5, 46, 16.5)
-    box(ax, 10, 10, 15, 13, "Export CSV\nfor the\nneurologist", fs=7.5, fc="#f3f3f3", ec="#666")
+    box(ax, 10, 10, 15, 13, "Export CSV\nfor the\nneurologist", fs=7.5, fc=FILL_IO, ec="#666")
     arrow(ax, 20.5, 10, 17.5, 10)
     save(fig, "user_flow.png")
 
@@ -470,10 +469,10 @@ def fig_user_flow():
 def fig_dataset(z):
     fig, axs = plt.subplots(1, 2, figsize=(7.5, 2.6))
     g, n = np.unique(z["grade"], return_counts=True)
-    axs[0].bar([str(v) for v in g], n, color=GRADE_COLORS)
+    axs[0].bar([str(v) for v in g], n, color=GRADE_COLORS, edgecolor=BAR_EDGE)
     axs[0].set_title("Test windows by UPDRS grade")
     a, n = np.unique(z["activity"], return_counts=True)
-    axs[1].bar(["Still", "Hand use", "Walking", "Vehicle"], n, color=[GREEN, BLUE, ORANGE, GREY])
+    axs[1].bar(["Still", "Hand use", "Walking", "Vehicle"], n, color=[GREEN, BLUE, ORANGE, GREY], edgecolor=BAR_EDGE)
     axs[1].set_title("Test windows by activity")
     save(fig, "dataset_distribution.png")
 
