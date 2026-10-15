@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+ml/data/
+node_modules/
+.DS_Store
