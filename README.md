@@ -40,6 +40,8 @@ All numbers come from `ml/scripts/evaluate.py` on held-out simulated subjects (3
 
 ## How it works
 
+![Architecture](docs/figures/architecture.png)
+
 ```
  phone / watch IMU (DeviceMotion, any rate)
         │  resample to 50 Hz
