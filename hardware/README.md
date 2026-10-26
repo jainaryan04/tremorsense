@@ -136,13 +136,34 @@ A short beep marks the moment cueing switches on. Pulses are timed to land at
 the same point of every tremor cycle (one motor latency, 40 ms, early) and
 last at most a third of a cycle.
 
-To try it without a patient, hold the sensor in your fingertips and shake it
-gently and rhythmically at about 5 times a second. Small shakes give grade 1,
-bigger ones grade 2 or 3. Then walk around or wave the hand: the LCD should
-switch to "Moving: paused".
+**Trying it by hand.** Rest your forearm on the table, hold the GY-61 between
+two fingers and shake it with small, quick movements, about **5 times a
+second** (as fast as you can tap), for at least **8 seconds**. Keep the rhythm
+steady: the grade needs three 2-second blocks to settle, and a cue starts once
+two of the last three blocks agree. Slow waving (below 3 shakes a second) or
+moving the whole arm counts as voluntary movement and pauses cues on purpose.
+Walk around or wave the arm while shaking: the LCD should switch to
+"Moving: paused".
 
-The Serial Monitor (115200) prints one `G,...` line per update: grade,
-frequency × 100, displacement in cm × 100, moving flag and cue strength.
+**Built-in test signal.** For a repeatable demonstration, open the Serial
+Monitor (115200 baud, line ending "New Line") and type `S,3` and Enter. A
+steady 5 Hz tremor of UPDRS grade 3 (5 cm) replaces the sensor; the LCD shows
+an **S** in the last column, the grade appears within 6 seconds and the motor
+pulses in time with it. `S,1` to `S,4` choose the grade, `S,0` goes back to
+the sensor. It exercises the whole firmware path (spectrum, grading, gate,
+phase tracking, motor) with a known input.
+
+**Serial Plotter view.** Type `V,1` in the Serial Monitor, close it and open
+**Tools → Serial Plotter**: you see the band-passed tremor and a square pulse
+each time the motor is driven, landing at the same point of every cycle.
+`V,0` turns it off.
+
+**What the numbers mean.** Every 2 seconds the Serial Monitor prints:
+
+- `G,grade,Hz×100,cm×100,moving,cue`, for example `G,3,503,489,0,3`.
+- `D,movement power×100,tremor power×100,peak share %,test grade`. Movement
+  power above 50 means the hand is moving; peak share below 25% means no clear
+  rhythm.
 
 ## How the Uno version works
 
@@ -158,9 +179,12 @@ file runs in the host tests.
   the frequency. Its power gives peak-to-peak displacement with the same
   physics as the app, d = 2·√(2P)/(2πf)², mapped to the MDS-UPDRS bands
   (< 1 cm, 1–3 cm, 3–10 cm, > 10 cm).
-- **Gate:** no cue while movement power below 3 Hz is high (walking, using the
-  hand, changing posture). A cue needs grade ≥ 2 in 2 of the last 3 blocks and
-  uses the weaker of them.
+- **Gate:** no cue while the hand is moving. Movement is power below 3 Hz in
+  the size of the slow (< 2.5 Hz) acceleration vector, gravity included:
+  walking and arm movement change it, while tilting the hand only turns
+  gravity and leaves it unchanged. Large sideways movement that rivals the
+  tremor on any axis also counts. A cue needs grade ≥ 2 in 2 of the last 3
+  blocks and uses the weaker of them.
 - **Phase-locked cue:** a band-pass filter at the tracked frequency on the
   strongest axis (zero phase at its centre) finds each upward zero crossing.
   The next pulse starts one cycle later minus the motor latency.
