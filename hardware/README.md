@@ -164,9 +164,9 @@ file runs in the host tests.
   strongest axis (zero phase at its centre) finds each upward zero crossing.
   The next pulse starts one cycle later minus the motor latency.
 
-The Uno has 2 KB of RAM, so it uses this rule-based gate. The full model and
-the conformal safety gate run in the web app, which also drives the Uno when
-it is connected (step 6).
+The Uno has 2 KB of RAM, so on its own it uses this rule-based gate. The full
+model and the conformal safety gate run in the web app, which drives the Uno
+when it is connected (step 6).
 
 The host tests check grading, frequency, displacement, movement gating and
 phase locking on simulated GY-61 signals:
@@ -181,9 +181,36 @@ resolves about 0.15 m/s², enough for grade 1 tremor and above.
 
 ## Step 6: connect to the web app
 
-*(Coming next.)* The app connects to the Uno over the USB cable from Chrome or
-Edge on a laptop, using the serial protocol documented at the top of
-`tremorsense_uno.ino`.
+With the firmware from step 5 on the Uno:
+
+1. Serve the app from the repo: `cd web && python3 -m http.server 8080`.
+2. Open `http://localhost:8080` in **Chrome or Edge on the laptop** the Uno is
+   plugged into. Web Serial only works in those browsers; the IDE's Serial
+   Monitor must be closed, because only one program can use the port.
+3. Choose **Arduino (USB)**, press **Start monitoring** and pick the Uno's port
+   (it may be listed as "USB Serial" or "Arduino Uno").
+
+The Uno resets when the port opens, then switches to app mode (an **A** in
+the last column of the LCD). From then on:
+
+- the Uno streams raw acceleration at 50 Hz;
+- the app runs the full TremorSense pipeline with a model trained for the
+  GY-61 (no gyroscope, 10-bit ADC, ±3.6 g): grade, activity, tremor type,
+  the **dual conformal safety gate** and **phase-locked cues**;
+- each cue goes back to the Uno as a motor pulse (PWM duty by grade, at most a
+  third of a cycle), timed 50 ms early for the motor spin-up and USB delay;
+- the LCD shows the app's grade and cue state, alternating with the
+  **medication wear-off forecast** once one exists, and the buzzer sounds once
+  15 minutes before the forecast wear-off;
+- the phase sweep (**Find my best phase**) works as it does on a phone.
+
+If the app stops sending (tab closed, cable pulled) the Uno goes back to
+standalone mode after 5 seconds.
+
+On held-out simulated subjects the GY-61 model grades 90.9% exactly and 100%
+within one grade, recognises activity 95.4% of the time, and its grade sets
+cover the true grade 98.9% of the time at α = 0.01. Like every result in this
+project, these are on simulated data.
 
 ## Regenerating the diagrams
 

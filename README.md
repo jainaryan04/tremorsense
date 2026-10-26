@@ -11,6 +11,8 @@ It does four things that existing tremor apps and wearables don't do together:
 
 See [docs/NOVELTY.md](docs/NOVELTY.md) for how each of these differs from published work and patents.
 
+It also runs on an **Arduino Uno** with a GY-61 accelerometer, an LCD, a coin vibration motor and a buzzer: standalone, or driven by the app over USB. See [hardware/README.md](hardware/README.md) for the step-by-step build.
+
 > Research prototype. Not a medical device. All models are trained and evaluated on **simulated** signals (see [Limitations](#limitations)) until clinical data is collected.
 
 ## Results (simulated data)
