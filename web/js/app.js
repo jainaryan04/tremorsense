@@ -2,7 +2,8 @@ import { Model } from "./model.js";
 import { Engine, FS } from "./engine.js";
 import { MotionSource, motionSupported, requestMotionPermission } from "./sensor.js";
 import { Simulator } from "./simulator.js";
-import { cue, canVibrate, confirmPulse } from "./haptics.js";
+import { cue, canVibrate, confirmPulse, pulseMs, UNO_DUTY } from "./haptics.js";
+import { UnoSource, serialSupported } from "./serial.js";
 import { Store } from "./store.js";
 import { drawTrace, drawChart } from "./charts.js";
 import * as med from "./medcurve.js";
@@ -11,6 +12,7 @@ const $ = (id) => document.getElementById(id);
 const store = new Store();
 const sim = new Simulator();
 let model, engine, motion, timer = null, source = "demo", running = false;
+let unoModel = null, uno = null, alertedDose = 0, unoForecast = "", unoTick = 0;
 const trace = [], marks = [];
 const TRACE_N = 2 * FS;
 const ACT_LABEL = { still: "Still", voluntary: "Using hand", gait: "Walking", vehicle: "In a vehicle" };
@@ -54,7 +56,17 @@ function showDecision(d) {
     cs.textContent = d.gateReason === "ok" ? "Confirming before cueing" : REASON[d.gateReason];
   }
   if (d.still) store.addDecision(d.expected);
+  if (uno) showOnUno(d);
   calibrator.record(d);
+}
+
+// The app drives the Uno's LCD while connected; line 2 alternates between the
+// cue state and the wear-off forecast.
+function showOnUno(d) {
+  uno.lcdTop(d.still ? (d.grade ? `Grade ${d.grade}  ${d.peakHz.toFixed(1)}Hz` : "No tremor") : "Moving: paused");
+  const cueText = !$("haptics").checked ? "Cues off"
+    : d.cueIntensity ? `Cue ${d.cueIntensity} locked` : d.still ? "No cue" : "Cues paused";
+  uno.lcd(unoForecast && unoTick++ % 2 ? unoForecast : cueText);
 }
 
 function onSample(s) {
@@ -122,8 +134,37 @@ function setTarget(deg) {
   store.setSetting("target", deg);
 }
 
+async function startUno() {
+  if (!serialSupported()) {
+    note("The Arduino connects through Chrome or Edge on a laptop or desktop (Web Serial).");
+    return false;
+  }
+  uno = new UnoSource((s) => engine.push(s), { onStatus: note });
+  try {
+    await uno.start();   // must run inside the click: the browser shows a port picker
+    if (!unoModel) unoModel = await Model.load("model/model_gy61.json");
+  } catch (e) {
+    uno = null;
+    note("No Arduino selected. Plug it in by USB, press Start and pick its port.");
+    return false;
+  }
+  // The GY-61 model has no gyro inputs and is held like a phone; the Uno's
+  // motor adds about 10 ms of USB delay to its 40 ms spin-up.
+  engine.model = unoModel;
+  engine.placementWatch = false;
+  engine.latencyS = 0.05;
+  engine.reset();
+  note("Arduino connected. Keep the sensor taped to the back of the hand and rest it. Readings start after 4 seconds.");
+  setTimeout(() => {
+    if (running && uno && !uno.samples) note("Connected, but no data from the Arduino. Check that tremorsense_uno.ino is uploaded.");
+  }, 5000);
+  return true;
+}
+
 async function start() {
-  if (source === "sensors") {
+  if (source === "uno") {
+    if (!(await startUno())) return;
+  } else if (source === "sensors") {
     if (!motionSupported()) return note("This browser doesn't expose motion sensors. Try Chrome on Android or Safari on iPhone.");
     if (!(await requestMotionPermission())) return note("Motion access was declined. Allow it in the browser settings to use the sensors.");
     motion = new MotionSource((s) => engine.push(s));
@@ -147,6 +188,14 @@ function stop() {
   timer = null;
   if (motion) motion.stop();
   motion = null;
+  if (uno) {
+    uno.stop();
+    uno = null;
+    engine.model = model;
+    engine.placementWatch = !!store.settings.placementWatch;
+    engine.latencyS = 0.06;
+    unoForecast = "";
+  }
   store.flush();
   engine.reset();
   $("start").textContent = "Start monitoring";
@@ -201,6 +250,15 @@ function updateMed() {
       forecast.textContent = mins > 0
         ? `Your last dose is expected to wear off around ${when} (in ${Math.floor(mins / 60)} h ${mins % 60} min).`
         : `Your last dose likely wore off around ${when}.`;
+      if (uno) {
+        unoForecast = mins > 0 ? `Wear-off ${when}` : "";
+        // One buzzer alert per dose, 15 minutes ahead.
+        const lastDose = Math.max(...doses);
+        if (mins > 0 && mins <= 15 && alertedDose !== lastDose) {
+          alertedDose = lastDose;
+          uno.beep(2200, 400);
+        }
+      }
       vlines.push({ x: wo, color: getComputedStyle(document.documentElement).getPropertyValue("--accent"), dash: [4, 4] });
     }
   } else {
@@ -246,7 +304,14 @@ async function init() {
   engine = new Engine(model, {
     onDecision: showDecision,
     onSample,
-    onCue: (intensity, f) => cue(intensity, f, flash),
+    onCue: (intensity, f) => {
+      if (uno) {
+        uno.pulse(UNO_DUTY[intensity] || 0, pulseMs(intensity, f));
+        flash();
+      } else {
+        cue(intensity, f, flash);
+      }
+    },
   });
   const st = store.settings;
   engine.placementWatch = !!st.placementWatch;

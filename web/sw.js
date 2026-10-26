@@ -1,9 +1,9 @@
 // Offline support: network first so updates show up, cache as the fallback.
-const CACHE = "tremorsense-v1";
+const CACHE = "tremorsense-v2";
 const ASSETS = [
-  "./", "index.html", "styles.css", "icon.svg", "manifest.webmanifest", "model/model.json",
+  "./", "index.html", "styles.css", "icon.svg", "manifest.webmanifest", "model/model.json", "model/model_gy61.json",
   "js/app.js", "js/engine.js", "js/dsp.js", "js/model.js", "js/conformal.js", "js/phase.js",
-  "js/medcurve.js", "js/sensor.js", "js/simulator.js", "js/haptics.js", "js/store.js", "js/charts.js",
+  "js/medcurve.js", "js/sensor.js", "js/simulator.js", "js/haptics.js", "js/store.js", "js/charts.js", "js/serial.js",
 ];
 
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))));
