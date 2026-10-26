@@ -281,27 +281,31 @@ standalone mode after 5 seconds.
 
 ### Test cases in the app
 
-The app's **Test cases** source runs the same 12 cases as the demo sketch,
-through the app's full pipeline (GY-61 model, conformal safety gate,
-phase-locked cues), and uses the Uno only for the motor, LCD and buzzer.
-Keep `tremorsense_uno` on the Uno (not the demo sketch): the app needs its
-USB commands.
+The app's **Test cases** source runs 7 of the demo's cases (rest, grades 2, 3
+and 4, an 8 Hz tremor, walking, and walking starting mid-tremor) through the
+app's full pipeline (GY-61 model, conformal safety gate, phase-locked cues),
+and uses the Uno only for the motor, LCD and buzzer. Five of them cue, at
+strengths 2, 3, 4, 2 and 2. The severe case is 16 cm at 4.5 Hz here, so the
+app grades it 4 with confidence. Keep `tremorsense_uno` on the Uno (not the
+demo sketch): the app needs its USB commands.
 
 1. Serve and open the app as above.
 2. Choose **Test cases**, keep **Use the Arduino for the motor, LCD and
    buzzer** ticked, and tick **Speaker notes** if you want the lines to say.
-3. Press **Run test cases** and pick the Uno's port.
+3. Press **Run test cases** and pick the Uno's port. The LCD shows
+   `App connected`, the buzzer beeps and the motor buzzes once.
 
 Each case shows its input and expected result for 6 s, runs (the live card
 shows the grade, possible grades, activity and cue; the LCD shows
-`T3 G2 5.0Hz` / `Cue 2  set 2`; the motor pulses), then shows PASS or FAIL
-with what was measured for 6 s. **Pause**, **Repeat**, **Next** or a click on
-a case in the list control it. The list keeps every result, ready for a
-screenshot. Without the Arduino ticked it runs in the app alone.
+`T3 G3 5.0Hz` / `Cue 3  set 3`; the motor pulses), then shows PASS or FAIL
+with what was measured for 6 s. About 4 minutes in all. **Pause**,
+**Repeat**, **Next** or a click on a case in the list control it. Without the
+Arduino ticked it runs in the app alone.
 
-In the app, case 5 (12 cm at 3.5 Hz) sits at the border of grades 3 and 4:
-the model reports possible grades 3–4 and cues at 3, the lower end, which is
-the conformal gate at work. The same cases run in `web/test/testcases.test.mjs`.
+When the app drives the Uno, cue pulses are longer than on a phone so the
+coin motor has time to spin up: 45, 55 and 65 ms at PWM duty 200, 230 and 255
+for grades 2, 3 and 4, never more than a third of a tremor cycle. The same
+cases run in `web/test/testcases.test.mjs`.
 
 On held-out simulated subjects the GY-61 model grades 90.9% exactly and 100%
 within one grade, recognises activity 95.4% of the time, and its grade sets
