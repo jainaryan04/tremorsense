@@ -165,6 +165,52 @@ each time the motor is driven, landing at the same point of every cycle.
   power above 50 means the hand is moving; peak share below 25% means no clear
   rhythm.
 
+## Test-case demo (for the review video)
+
+`tremorsense_demo/tremorsense_demo.ino` runs 12 test cases one after
+another, with no need to move the sensor. Each case feeds the real tremor
+engine (the same `tremor_core.h` as the firmware) a synthetic GY-61 signal of
+known frequency and size, drives the motor and buzzer exactly as the firmware
+does, and checks the result. The wiring is the same as step 5; the sensor can
+stay on the table.
+
+After a motor and buzzer check, each case shows:
+
+| LCD | For | What it means |
+|---|---|---|
+| `Test 3 of 12` / `Mild tremor` | 6 s | The case about to run |
+| `T3 Grade 2 5.0Hz` / `2.0cm  Cue 2` | 14 to 20 s | Live result every 2 s, motor pulsing when cued |
+| `Test 3: PASS` / `Cue 2, locked` | 6 s | Verdict; two high beeps for pass, one low tone for fail |
+
+At the end the LCD shows `Done: 12/12 PASS`. The whole run takes about 5
+minutes.
+
+| # | Case | Input | Expected |
+|---|---|---|---|
+| 1 | Hand at rest | No tremor | No tremor, no cue |
+| 2 | Slight tremor | 5 Hz, 0.5 cm | Grade 1, no cue |
+| 3 | Mild tremor | 5 Hz, 2 cm | Grade 2, cue 2, phase locked |
+| 4 | Moderate tremor | 5 Hz, 5 cm | Grade 3, cue 3, phase locked |
+| 5 | Severe tremor | 3.5 Hz, 12 cm | Grade 4, cue 4 |
+| 6 | 8 Hz tremor | 8 Hz, 2 cm | Grade 2 at 8 Hz, cue 2 |
+| 7 | Walking | 5 Hz, 2 cm, walking | Moving: paused, never cued |
+| 8 | Using the arm | 5 Hz, 2 cm, arm moving | Moving: paused, never cued |
+| 9 | Hand tilting | 5 Hz, 5 cm, slow tilt | Grade 3, cue 3 (tilt is not movement) |
+| 10 | Short burst | 2 s of 5 cm, then rest | Never cued (2 of 3 blocks must agree) |
+| 11 | Tremor stops | 12 s of 5 cm, then rest | Cued, then off |
+| 12 | Walking starts | 2 cm, walking after 12 s | Cued, then Moving: paused |
+
+The Serial Monitor (115200 baud, "New Line") prints each case's input, the
+expected result, every 2-second reading, the verdict with the pulse count
+and phase-lock value (1.00 = every pulse at the same point of the tremor
+cycle), and a summary table. Commands: `p` pause or resume, `n` next case,
+`r` repeat the case, `1` to `12` jump to a case, `a` run all again, `v`
+Serial Plotter view. The reset button starts again from case 1.
+
+The same cases run in CI (`hardware/test/test_demo.cpp`), so a change to the
+engine can't break the demo unnoticed. The signal is synthetic, not a
+patient; say so when you show it.
+
 ## How the Uno version works
 
 `tremorsense_uno/tremor_core.h` is the engine. It is plain C++, so the same
@@ -183,8 +229,9 @@ file runs in the host tests.
   the size of the slow (< 2.5 Hz) acceleration vector, gravity included:
   walking and arm movement change it, while tilting the hand only turns
   gravity and leaves it unchanged. Large sideways movement that rivals the
-  tremor on any axis also counts. A cue needs grade ≥ 2 in 2 of the last 3
-  blocks and uses the weaker of them.
+  tremor on any axis also counts. Movement is judged from the second block
+  after start-up, once the filters have settled. A cue needs grade ≥ 2 in 2
+  of the last 3 blocks and uses the weaker of them.
 - **Phase-locked cue:** a band-pass filter at the tracked frequency on the
   strongest axis (zero phase at its centre) finds each upward zero crossing.
   The next pulse starts one cycle later minus the motor latency.
