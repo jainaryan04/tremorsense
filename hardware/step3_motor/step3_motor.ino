@@ -3,7 +3,7 @@
 #include <LiquidCrystal.h>
 
 const int LCD_RS = 12, LCD_E = 11, LCD_D4 = 5, LCD_D5 = 4, LCD_D6 = 3, LCD_D7 = 2;
-const int LCD_CONTRAST = 6, CONTRAST = 60;   // use your value from step 1
+const int LCD_CONTRAST = 6, CONTRAST = 0;    // your value from step 1
 const int MOTOR = 9;
 
 LiquidCrystal lcd(LCD_RS, LCD_E, LCD_D4, LCD_D5, LCD_D6, LCD_D7);

@@ -5,7 +5,7 @@
 #include <LiquidCrystal.h>
 
 const int LCD_RS = 12, LCD_E = 11, LCD_D4 = 5, LCD_D5 = 4, LCD_D6 = 3, LCD_D7 = 2;
-const int LCD_CONTRAST = 6, CONTRAST = 60;   // use your value from step 1
+const int LCD_CONTRAST = 6, CONTRAST = 0;    // your value from step 1
 const int ACC_X = A0, ACC_Y = A1, ACC_Z = A2;
 
 // GY-61 (ADXL335): about 1.65 V at 0 g and 0.33 V per g; Uno ADC is 5 V / 1023.

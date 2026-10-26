@@ -22,4 +22,4 @@ const int MOTOR = 9;
 const int BUZZER = 8;
 
 // Change this if the text is too faint (raise) or shows solid blocks (lower).
-const int CONTRAST_DEFAULT = 60;
+const int CONTRAST_DEFAULT = 0;

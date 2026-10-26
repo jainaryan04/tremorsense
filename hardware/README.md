@@ -66,7 +66,8 @@ the value where the text is clearest, and write it into `CONTRAST_DEFAULT` in
 - Nothing at all: check pins 1, 2, 15 and 16 and the rails.
 - Text appears garbled: one of the four data wires (D2 to D5) is swapped.
 - If the contrast from D6 flickers, move the LCD pin 3 wire straight to GND.
-  Most JHD162A screens are readable that way.
+  Most JHD162A screens are readable that way (the prototype was clearest at
+  contrast 0, which is the same thing).
 
 ## Step 2: GY-61 accelerometer
 
