@@ -62,7 +62,7 @@ const Case CASES[NCASES] DEMO_PROGMEM = {
     // 8. Using the arm with tremor: paused.
     {{{14, 5.0f, 2.0f, 0, 5.0f, 0}}, 1, 2, true, NEVER, 0, 0},
     // 9. Hand tilting slowly with tremor: not mistaken for movement.
-    {{{14, 5.0f, 5.0f, 0, 0, 1.0f}}, 1, 3, false, AT_END, 3, 5.0f},
+    {{{14, 5.0f, 5.0f, 0, 0, 0.5f}}, 1, 3, false, AT_END, 3, 5.0f},
     // 10. A 2-second burst, then rest: debounce, no cue.
     {{{2, 5.0f, 5.0f, 0, 0, 0}, {12, 5.0f, 0, 0, 0, 0}}, 2, 0, false, NEVER, 0, 0},
     // 11. Tremor stops: cue switches off.
