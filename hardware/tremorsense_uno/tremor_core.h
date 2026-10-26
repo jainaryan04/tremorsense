@@ -58,6 +58,7 @@ class Engine {
   void reset() {
     n_ = 0;
     primed_ = 0;
+    warm_ = 0;
     for (int a = 0; a < 3; a++) mean_[a] = NAN;
     mean_mag_ = NAN;
     for (int i = 0; i < 3; i++)
@@ -80,10 +81,14 @@ class Engine {
   bool push(int cx, int cy, int cz) {
     float c[3] = {(float)cx, (float)cy, (float)cz};
     float a[3];
+    // ~1 s time constant: follows posture changes, leaves 3-12 Hz intact.
+    // Over the first second a plain average, so the start-up transient
+    // isn't taken for movement.
+    if (warm_ < 50) warm_++;
+    float k = warm_ < 50 ? 1.0f / warm_ : 0.02f;
     for (int i = 0; i < 3; i++) {
       if (isnan(mean_[i])) mean_[i] = c[i];
-      // ~1 s time constant: follows posture changes, leaves 3-12 Hz intact.
-      mean_[i] += 0.02f * (c[i] - mean_[i]);
+      mean_[i] += k * (c[i] - mean_[i]);
       a[i] = (c[i] - mean_[i]) * MS2_PER_COUNT;
     }
     // Size of the slow part (< 2.5 Hz) of the total acceleration, gravity
@@ -97,7 +102,7 @@ class Engine {
     }
     float mag = sqrtf(mag2);
     if (isnan(mean_mag_)) mean_mag_ = mag;
-    mean_mag_ += 0.02f * (mag - mean_mag_);
+    mean_mag_ += k * (mag - mean_mag_);
     float m = mag - mean_mag_;
 
     t_ += 1.0f / FS;
@@ -180,7 +185,7 @@ class Engine {
     return x;
   }
   int n_;
-  uint8_t primed_;
+  uint8_t primed_, warm_;
   uint8_t hist_[3];
   Result res_;
   float diag_low_ = 0, diag_tremor_ = 0, diag_prominence_ = 0;
@@ -260,7 +265,10 @@ class Engine {
     // the acceleration. A resting hand with tremor also tilts slowly, which
     // shows up below 3 Hz on each axis but not in the size, so per-axis
     // power only counts when it rivals the tremor itself.
-    bool moving = var_mag_low > move_var || (var_low > move_var && var_low > move_ratio * var_tremor);
+    // The filters are still settling during the first block after a reset,
+    // so movement is judged from the second block on.
+    bool moving = primed_ > 0 &&
+                  (var_mag_low > move_var || (var_low > move_var && var_low > move_ratio * var_tremor));
 
     // Dominant axis at the peak, for phase tracking.
     for (int i = 0; i < 3; i++)
