@@ -15,7 +15,7 @@
 //   app -> Uno  M,1 / M,0     app mode on (repeat at least every 5 s) / off
 //               P,<duty 0-255>,<ms>                 vibration pulse now
 //               B,<Hz>,<ms>                         buzzer tone
-//               L,<text>                            LCD line 2 (16 chars)
+//               T,<text> / L,<text>                 LCD line 1 / line 2 (16 chars)
 //               K,<0-255>                           LCD contrast
 #include <LiquidCrystal.h>
 
@@ -38,6 +38,7 @@ uint8_t last_cue = 0;
 char line[28];
 uint8_t line_len = 0;
 char app_text[17] = "";
+char app_top[17] = "";
 
 void motor_off() {
   analogWrite(MOTOR, 0);
@@ -73,6 +74,7 @@ void show(const ts::Result& r) {
     a[15] = 'A';
     a[16] = 0;
   }
+  if (app_mode && app_top[0]) snprintf(a, sizeof a, "%s", app_top);
   if (app_mode && app_text[0]) snprintf(b, sizeof b, "%s", app_text);
   else if (r.moving) snprintf(b, sizeof b, "Moving: paused");
   else if (r.cue) snprintf(b, sizeof b, "%scm  Cue %d", d, r.cue);
@@ -91,7 +93,7 @@ void handle_line(char* s) {
   switch (cmd) {
     case 'M':
       app_mode = atoi(arg) == 1;
-      if (!app_mode) app_text[0] = 0;
+      if (!app_mode) app_text[0] = app_top[0] = 0;
       break;
     case 'P': {
       int duty = atoi(arg);
@@ -107,6 +109,12 @@ void handle_line(char* s) {
       if (hz > 0) tone(BUZZER, constrain(hz, 100, 8000), constrain(ms, 1, 2000));
       break;
     }
+    case 'T':
+      strncpy(app_top, arg, 16);
+      app_top[16] = 0;
+      lcd.setCursor(0, 0);
+      print_padded(app_top);
+      break;
     case 'L':
       strncpy(app_text, arg, 16);
       app_text[16] = 0;
@@ -160,7 +168,7 @@ void loop() {
   read_serial();
   if (app_mode && millis() - last_app_ms > APP_TIMEOUT_MS) {
     app_mode = false;   // app went away: carry on standalone
-    app_text[0] = 0;
+    app_text[0] = app_top[0] = 0;
   }
   if (pulsing && (long)(millis() - pulse_end_ms) >= 0) motor_off();
 
