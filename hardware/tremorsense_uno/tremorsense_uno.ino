@@ -12,11 +12,18 @@
 //   Uno -> app  H,TremorSense-Uno,<version>         on boot
 //               A,<x>,<y>,<z>                       raw ADC counts, 50 Hz (app mode only)
 //               G,<grade>,<Hz*100>,<cm*100>,<moving>,<cue>   every 2 s
+//               D,<move power*100>,<tremor power*100>,<peak share %>,<sim grade>
+//                                                   every 2 s, why the gate decided
 //   app -> Uno  M,1 / M,0     app mode on (repeat at least every 5 s) / off
 //               P,<duty 0-255>,<ms>                 vibration pulse now
 //               B,<Hz>,<ms>                         buzzer tone
 //               T,<text> / L,<text>                 LCD line 1 / line 2 (16 chars)
 //               K,<0-255>                           LCD contrast
+//               V,1 / V,0    Serial Plotter view on/off: per sample "tremor:<m/s^2*10>
+//                            motor:<0|20>" instead of the G/D lines
+//               S,<0-4>      built-in test signal: a steady 5 Hz tremor of that
+//                            UPDRS grade replaces the sensor (S,0 = sensor again).
+//                            The LCD shows "S" in the last column while it runs.
 #include <LiquidCrystal.h>
 
 #include "pins.h"
@@ -39,6 +46,24 @@ char line[28];
 uint8_t line_len = 0;
 char app_text[17] = "";
 char app_top[17] = "";
+
+// Built-in test signal (S command): a 5 Hz tremor at the middle of each
+// grade's displacement band, along a fixed direction, plus ADC-sized noise.
+uint8_t sim_grade = 0;
+bool plot_mode = false;
+float sim_phase = 0;
+const float SIM_P2P_CM[5] = {0, 0.5f, 2.0f, 5.0f, 12.0f};
+const float SIM_HZ = 5.0f;
+
+void sim_counts(int* x, int* y, int* z) {
+  sim_phase += 2 * PI * SIM_HZ / ts::FS;
+  if (sim_phase > 2 * PI) sim_phase -= 2 * PI;
+  float amp = SIM_P2P_CM[sim_grade] / 200.0f * sq(2 * PI * SIM_HZ);   // m/s^2
+  float c = amp * sin(sim_phase) / ts::MS2_PER_COUNT;
+  *x = constrain((int)(ts::ZERO_G_COUNTS + 0.6f * c) + random(-1, 2), 0, 1023);
+  *y = constrain((int)(ts::ZERO_G_COUNTS + 0.3f * c) + random(-1, 2), 0, 1023);
+  *z = constrain((int)(ts::ZERO_G_COUNTS + 9.81f / ts::MS2_PER_COUNT + 0.74f * c) + random(-1, 2), 0, 1023);
+}
 
 void motor_off() {
   analogWrite(MOTOR, 0);
@@ -67,11 +92,11 @@ void show(const ts::Result& r) {
   dtostrf(r.disp_cm, 3, 1, d);
   if (r.grade == 0) snprintf(a, sizeof a, "No tremor");
   else snprintf(a, sizeof a, "Grade %d  %sHz", r.grade, f);
-  if (app_mode) {
-    // Mark app mode in the last column.
+  if (app_mode || sim_grade) {
+    // Mark app mode (A) or the test signal (S) in the last column.
     uint8_t n = strlen(a);
     while (n < 15) a[n++] = ' ';
-    a[15] = 'A';
+    a[15] = sim_grade ? 'S' : 'A';
     a[16] = 0;
   }
   if (app_mode && app_top[0]) snprintf(a, sizeof a, "%s", app_top);
@@ -120,6 +145,15 @@ void handle_line(char* s) {
       app_text[16] = 0;
       lcd.setCursor(0, 1);
       print_padded(app_text);
+      break;
+    case 'V':
+      plot_mode = atoi(arg) == 1;
+      break;
+    case 'S':
+      sim_grade = constrain(atoi(arg), 0, 4);
+      engine.reset();
+      lcd.setCursor(0, 1);
+      print_padded(sim_grade ? "Test signal on" : "Sensor input");
       break;
     case 'K':
       analogWrite(LCD_CONTRAST, constrain(atoi(arg), 0, 255));
@@ -178,6 +212,7 @@ void loop() {
   int x = analogRead(ACC_X);
   int y = analogRead(ACC_Y);
   int z = analogRead(ACC_Z);
+  if (sim_grade) sim_counts(&x, &y, &z);
   if (app_mode) {
     Serial.print("A,");
     Serial.print(x);
@@ -189,10 +224,21 @@ void loop() {
 
   bool block = engine.push(x, y, z);
   if (!app_mode && engine.should_fire()) pulse(engine.pulse_duty(), engine.pulse_ms());
+  if (plot_mode && !app_mode) {
+    Serial.print("tremor:");
+    Serial.print((int)(engine.phase_signal() * 10));
+    Serial.print(" motor:");
+    Serial.println(pulsing ? 20 : 0);
+  }
 
   if (block) {
     const ts::Result& r = engine.result();
     show(r);
+    if (plot_mode && !app_mode) {
+      if (!app_mode && r.cue && !last_cue) tone(BUZZER, 2000, 60);
+      last_cue = r.cue;
+      return;
+    }
     Serial.print("G,");
     Serial.print(r.grade);
     Serial.print(',');
@@ -203,6 +249,14 @@ void loop() {
     Serial.print(r.moving ? 1 : 0);
     Serial.print(',');
     Serial.println(r.cue);
+    Serial.print("D,");
+    Serial.print((long)(engine.diag_low() * 100));
+    Serial.print(',');
+    Serial.print((long)(engine.diag_tremor() * 100));
+    Serial.print(',');
+    Serial.print((int)(engine.diag_prominence() * 100));
+    Serial.print(',');
+    Serial.println(sim_grade);
     // Short beep when standalone cueing switches on.
     if (!app_mode && r.cue && !last_cue) tone(BUZZER, 2000, 60);
     last_cue = r.cue;
