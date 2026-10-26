@@ -5,6 +5,7 @@ import { Simulator } from "./simulator.js";
 import { cue, canVibrate, confirmPulse, pulseMs, UNO_DUTY } from "./haptics.js";
 import { UnoSource, serialSupported } from "./serial.js";
 import { Store } from "./store.js";
+import { CASES, caseSamples, Checker } from "./testcases.js";
 import { drawTrace, drawChart } from "./charts.js";
 import * as med from "./medcurve.js";
 
@@ -55,6 +56,7 @@ function showDecision(d) {
     cs.className = d.gateReason === "below_threshold" || d.gateReason === "ok" ? "cue-state" : "cue-state paused";
     cs.textContent = d.gateReason === "ok" ? "Confirming before cueing" : REASON[d.gateReason];
   }
+  if (tests.active) return tests.decision(d);   // synthetic: keep it out of the log
   if (d.still) store.addDecision(d.expected);
   if (uno) showOnUno(d);
   calibrator.record(d);
@@ -127,11 +129,163 @@ const calibrator = {
   },
 };
 
+// Runs the 12 test cases from the Arduino demo through the app's own
+// pipeline, using the Uno (when connected) for the motor, LCD and buzzer.
+const INTRO_S = 6, RESULT_S = 6;
+const tests = {
+  active: false, paused: false, i: 0, phase: "intro", ticks: 0, results: [],
+  begin() {
+    this.active = true;
+    this.paused = false;
+    this.results = [];
+    $("tc-summary").hidden = true;
+    ["tc-pause", "tc-repeat", "tc-next"].forEach((id) => ($(id).disabled = false));
+    this.list();
+    this.timer = setInterval(() => this.tick(), 100);
+    this.go(0);
+  },
+  end() {
+    clearInterval(this.timer);
+    this.active = false;
+    ["tc-pause", "tc-repeat", "tc-next"].forEach((id) => ($(id).disabled = true));
+    $("tc-pause").textContent = "Pause";
+  },
+  list() {
+    $("tc-list").innerHTML = CASES.map((c, i) => {
+      const r = this.results[i];
+      const st = r ? `<span class="st ${r.why ? "fail" : "pass"}">${r.why ? `FAIL: ${r.why}` : "PASS"}</span><span class="got">${r.got}</span>` : "";
+      return `<li data-i="${i}" class="${this.active && i === this.i ? "now" : ""}">${c.name}${st}</li>`;
+    }).join("");
+  },
+  lcd(top, bottom) {
+    if (!uno) return;
+    uno.lcdTop(top);
+    uno.lcd(bottom);
+  },
+  go(i) {
+    this.i = i;
+    this.phase = "intro";
+    this.ticks = 0;
+    const c = CASES[i];
+    $("tc-title").textContent = `Test ${i + 1} of ${CASES.length}: ${c.name}`;
+    $("tc-badge").className = "tc-badge";
+    $("tc-badge").textContent = "Next";
+    $("tc-input").textContent = c.input;
+    $("tc-expect").textContent = c.expect;
+    $("tc-result").textContent = "–";
+    $("tc-say").textContent = c.say;
+    this.lcd(`Test ${i + 1} of ${CASES.length}`, c.name);
+    if (uno) uno.beep(1500, 80);
+    this.list();
+  },
+  run() {
+    this.phase = "run";
+    engine.reset();
+    this.samples = caseSamples(CASES[this.i]);
+    this.gen = null;
+    this.chk = new Checker(CASES[this.i], engine.latencyS);
+    $("tc-badge").className = "tc-badge run";
+    $("tc-badge").textContent = "Running";
+  },
+  tick() {
+    if (this.paused || !running) return;
+    this.ticks++;
+    if (this.phase === "intro" && this.ticks >= INTRO_S * 10) this.run();
+    else if (this.phase === "run") {
+      for (let k = 0; k < 5; k++) {
+        const { value, done } = this.samples.next();
+        if (done) return this.finish();
+        this.gen = value.gen;
+        engine.push(value.sample);
+      }
+    } else if (this.phase === "result" && this.ticks >= RESULT_S * 10) {
+      if (this.i + 1 < CASES.length) this.go(this.i + 1);
+      else this.summary();
+    }
+  },
+  decision(d) {
+    if (this.phase !== "run") return;
+    this.chk.decision(d);
+    const n = this.i + 1, set = d.severitySet.length > 1 ? `${d.severitySet[0]}-${d.severitySet[d.severitySet.length - 1]}` : `${d.severitySet[0]}`;
+    this.lcd(
+      !d.still ? `T${n} Moving` : d.grade ? `T${n} G${d.grade} ${d.peakHz.toFixed(1)}Hz` : `T${n} No tremor`,
+      !d.still ? "Moving: paused" : d.cueIntensity ? `Cue ${d.cueIntensity}  set ${set}` : `No cue  set ${set}`,
+    );
+  },
+  pulse() {
+    if (this.phase === "run" && this.gen) this.chk.pulse(this.gen.phase, this.gen.hz);
+  },
+  finish() {
+    const c = this.chk, d = c.last, why = c.failure();
+    const got = d
+      ? `${d.still ? `grade ${d.grade} (possible ${d.severitySet.join("–")})` : `moving (${ACT_LABEL[d.activity].toLowerCase()})`}, ` +
+        `${d.peakHz.toFixed(2)} Hz, ${d.dispCm.toFixed(2)} cm, cue ${d.cueIntensity}, ${c.pulses} pulses` +
+        (c.pulses ? `, phase lock ${c.phaseLock.toFixed(2)}` : "")
+      : "no reading";
+    this.results[this.i] = { why, got };
+    this.phase = "result";
+    this.ticks = 0;
+    $("tc-badge").className = `tc-badge ${why ? "fail" : "pass"}`;
+    $("tc-badge").textContent = why ? "FAIL" : "PASS";
+    $("tc-result").textContent = (why ? `FAIL (${why}): ` : "PASS: ") + got;
+    this.lcd(`Test ${this.i + 1}: ${why ? "FAIL" : "PASS"}`, why ? why : d.still ? (d.cueIntensity ? `Cue ${d.cueIntensity}, locked` : c.pulses ? "Cue stopped: OK" : "No cue: correct") : "Paused: correct");
+    if (uno) {
+      if (why) uno.beep(400, 400);
+      else {
+        uno.beep(2000, 70);
+        setTimeout(() => uno && uno.beep(2600, 70), 110);
+      }
+    }
+    this.list();
+  },
+  summary() {
+    const ran = this.results.filter(Boolean), ok = ran.filter((r) => !r.why).length;
+    this.phase = "done";
+    $("tc-title").textContent = "All test cases done";
+    $("tc-badge").className = `tc-badge ${ok === ran.length ? "pass" : "fail"}`;
+    $("tc-badge").textContent = `${ok}/${ran.length} PASS`;
+    $("tc-summary").hidden = false;
+    $("tc-summary").textContent = `${ok} of ${ran.length} test cases passed. The signals are synthetic, not patient data.`;
+    this.lcd(`Done: ${ok}/${ran.length} PASS`, "TremorSense app");
+    this.list();
+  },
+  pause() {
+    this.paused = !this.paused;
+    $("tc-pause").textContent = this.paused ? "Resume" : "Pause";
+  },
+};
+
 function setTarget(deg) {
   $("target").value = deg;
   $("target-out").textContent = `${deg}°`;
   engine.setTarget((deg * Math.PI) / 180);
   store.setSetting("target", deg);
+}
+
+async function startTests() {
+  if (!unoModel) unoModel = await Model.load("model/model_gy61.json");
+  if ($("tests-uno").checked) {
+    if (!serialSupported()) {
+      note("The Arduino connects through Chrome or Edge on a laptop. Running the test cases in the app only.");
+    } else {
+      // Only the motor, LCD and buzzer are used: live sensor data is ignored.
+      uno = new UnoSource(() => {}, { onStatus: note });
+      try {
+        await uno.start();
+        note("Arduino connected: the motor, LCD and buzzer follow the test cases.");
+      } catch (e) {
+        uno = null;
+        note("No Arduino selected, so the test cases run in the app only.");
+      }
+    }
+  }
+  // Same settings as live Arduino data.
+  engine.model = unoModel;
+  engine.placementWatch = false;
+  engine.latencyS = 0.05;
+  engine.cueEnabled = true;
+  engine.reset();
+  return true;
 }
 
 async function startUno() {
@@ -162,7 +316,9 @@ async function startUno() {
 }
 
 async function start() {
-  if (source === "uno") {
+  if (source === "tests") {
+    await startTests();
+  } else if (source === "uno") {
     if (!(await startUno())) return;
   } else if (source === "sensors") {
     if (!motionSupported()) return note("This browser doesn't expose motion sensors. Try Chrome on Android or Safari on iPhone.");
@@ -179,6 +335,11 @@ async function start() {
   $("start").classList.add("stop");
   $("status-pill").textContent = source === "demo" ? "Demo running" : "Monitoring";
   $("status-pill").classList.add("live");
+  if (source === "tests") {
+    $("start").textContent = "Stop test cases";
+    $("status-pill").textContent = "Test cases";
+    tests.begin();
+  }
   requestAnimationFrame(render);
 }
 
@@ -188,8 +349,12 @@ function stop() {
   timer = null;
   if (motion) motion.stop();
   motion = null;
-  if (uno) {
-    uno.stop();
+  if (tests.active) {
+    tests.end();
+    engine.cueEnabled = $("haptics").checked;
+  }
+  if (uno || source === "tests") {
+    if (uno) uno.stop();
     uno = null;
     engine.model = model;
     engine.placementWatch = !!store.settings.placementWatch;
@@ -198,7 +363,7 @@ function stop() {
   }
   store.flush();
   engine.reset();
-  $("start").textContent = "Start monitoring";
+  $("start").textContent = source === "tests" ? "Run test cases" : "Start monitoring";
   $("start").classList.remove("stop");
   $("status-pill").textContent = "Stopped";
   $("status-pill").classList.remove("live");
@@ -305,6 +470,7 @@ async function init() {
     onDecision: showDecision,
     onSample,
     onCue: (intensity, f) => {
+      if (tests.active) tests.pulse();
       if (uno) {
         uno.pulse(UNO_DUTY[intensity] || 0, pulseMs(intensity, f));
         flash();
@@ -325,6 +491,9 @@ async function init() {
     if (running) stop();
     source = v;
     $("demo-panel").hidden = v !== "demo";
+    $("tests-panel").hidden = v !== "tests";
+    $("start").textContent = v === "tests" ? "Run test cases" : "Start monitoring";
+    if (v === "tests") tests.list();
     note("");
   });
   segment("placement", (v) => {
@@ -349,6 +518,14 @@ async function init() {
     updateMed();
   });
   $("demo-data").addEventListener("click", loadDemoData);
+  $("tc-pause").addEventListener("click", () => tests.pause());
+  $("tc-repeat").addEventListener("click", () => tests.go(tests.i));
+  $("tc-next").addEventListener("click", () => (tests.i + 1 < CASES.length ? tests.go(tests.i + 1) : tests.summary()));
+  $("tc-list").addEventListener("click", (e) => {
+    const li = e.target.closest("li");
+    if (li && tests.active) tests.go(+li.dataset.i);
+  });
+  $("tc-notes").addEventListener("change", (e) => ($("tc-say").hidden = !e.target.checked));
   $("export").addEventListener("click", () => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([store.csv()], { type: "text/csv" }));
@@ -368,7 +545,7 @@ async function init() {
   if ("serviceWorker" in navigator && location.protocol !== "file:") {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
-  window.__tremorsense = { engine, sim, store, start, stop };
+  window.__tremorsense = { engine, sim, store, start, stop, tests };
 }
 
 init();

@@ -25,10 +25,11 @@
   <main>
     <section class="card controls">
       <div class="row">
-        <div class="seg" role="radiogroup" aria-label="Signal source">
+        <div class="seg wrap" role="radiogroup" aria-label="Signal source">
           <button data-source="demo" class="on" role="radio" aria-checked="true">Demo</button>
           <button data-source="sensors" role="radio" aria-checked="false">Phone sensors</button>
           <button data-source="uno" role="radio" aria-checked="false">Arduino (USB)</button>
+          <button data-source="tests" role="radio" aria-checked="false">Test cases</button>
         </div>
         <div class="seg" role="radiogroup" aria-label="Where the device is">
           <button data-placement="phone" class="on" role="radio" aria-checked="true">In hand</button>
@@ -56,6 +57,29 @@
       <div id="cue-state" class="cue-state">Cues off</div>
       <canvas id="trace" class="trace" aria-label="Live tremor signal, green lines mark haptic cues"></canvas>
       <p class="tiny muted">Dominant tremor axis, last 2 s. Green lines mark where a cue was timed.</p>
+    </section>
+
+    <section id="tests-panel" class="card" hidden>
+      <h2>Test cases</h2>
+      <label class="switch"><input id="tests-uno" type="checkbox" checked> <span>Use the Arduino for the motor, LCD and buzzer</span></label>
+      <p class="note">Runs 12 cases on a synthetic tremor of known size, through the same path as live Arduino data: the full model, the conformal safety gate and phase-locked cues. About 6 minutes.</p>
+      <div class="tc-now" aria-live="polite">
+        <div class="tc-head"><span id="tc-title">Press Run test cases</span><span id="tc-badge" class="tc-badge"></span></div>
+        <dl class="tc-facts">
+          <dt>Input</dt><dd id="tc-input">–</dd>
+          <dt>Expected</dt><dd id="tc-expect">–</dd>
+          <dt>Result</dt><dd id="tc-result">–</dd>
+        </dl>
+        <p id="tc-say" class="tc-say" hidden></p>
+      </div>
+      <div class="row">
+        <button id="tc-pause" class="secondary" disabled>Pause</button>
+        <button id="tc-repeat" class="secondary" disabled>Repeat</button>
+        <button id="tc-next" class="secondary" disabled>Next</button>
+        <label class="switch"><input id="tc-notes" type="checkbox"> <span>Speaker notes</span></label>
+      </div>
+      <ol id="tc-list" class="tc-list"></ol>
+      <p id="tc-summary" class="forecast" hidden></p>
     </section>
 
     <section id="demo-panel" class="card">
