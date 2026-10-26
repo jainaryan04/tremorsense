@@ -88,9 +88,20 @@ save(cards([("07_card_walking.png", "(a) Walking: cues paused"), ("08_card_vehic
             ("09_card_using_hand.png", "(c) Using the hand: cues paused"), ("11_calibrating.png", "(d) Phase calibration in progress")]),
      s("composite_gating.png"))
 
-case = lambda n: stack([width(load(s(f"{n}_card.png")), 1074), width(load(s(f"{n}_case.png")), 1074)])
-save(grid([label(case("19_test_grade4"), "(a) Test 4: severe tremor, cue 4"),
-           label(case("20_test_walking"), "(b) Test 6: walking, cues paused")], 2), s("composite_tests.png"))
+# One figure per test case: the live card with the waves (a) beside the
+# case's specification and result (b). Case 7 also shows the cue before walking.
+def tc_fig(n):
+    card, spec = load(s(f"{n}_card.png")), load(s(f"{n}_case.png"))
+    return stack([label(card, "(a) Live card: tremor wave, green lines = timed cues"),
+                  label(width(spec, card.width), "(b) Test specification and result")], gap=30)
+
+
+for i in range(1, 7):
+    save(tc_fig(f"tc{i}"), s(f"fig_tc{i}.png"))
+save(stack([grid([label(load(s("tc7a_card.png")), "(a) At 10 s: hand still, cue 2"),
+                  label(load(s("tc7_card.png")), "(b) At 18 s: walking, cues paused")], 2, gap=50),
+            label(width(load(s("tc7_case.png")), 1500), "(c) Test specification and result")], gap=30),
+     s("fig_tc7.png"))
 
 # Wiring: the LCD on the left, sensor, motor driver and buzzer on the right.
 lcd = load(os.path.join(HW, "step1_lcd.png"))

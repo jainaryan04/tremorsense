@@ -104,14 +104,23 @@ await t.uncheck("#tests-uno");
 await t.click("#start");
 await t.waitForTimeout(300);
 const CASE_S = 26;
-async function caseShot(name, at) {
+async function at(sec) {
   const now = await t.evaluate(() => performance.now());
-  await t.clock.runFor(Math.max(0, at * 1000 - now + 300));
-  await card(t, 1).screenshot({ path: OUT + name.replace(".png", "_card.png") });
-  await t.locator(".tc-now").screenshot({ path: OUT + name.replace(".png", "_case.png") });
+  await t.clock.runFor(Math.max(0, sec * 1000 - now + 300));
 }
-await caseShot("19_test_grade4.png", 3 * CASE_S + 6 + 12);
-await caseShot("20_test_walking.png", 5 * CASE_S + 6 + 12);
+// Every case near its end, once cues have settled, then its result (shown for
+// 6 s after the case). Case 7 also while still cueing, before walking at 12 s.
+for (let i = 0; i < 7; i++) {
+  const start = i * CASE_S + 6, len = i === 6 ? 20 : 14;
+  if (i === 6) {
+    await at(start + 10);
+    await card(t, 1).screenshot({ path: OUT + "tc7a_card.png" });
+  }
+  await at(start + len - 2);
+  await card(t, 1).screenshot({ path: OUT + `tc${i + 1}_card.png` });
+  await at(start + len + 2);
+  await t.locator(".tc-now").screenshot({ path: OUT + `tc${i + 1}_case.png` });
+}
 for (let k = 0; k < 6; k++) await t.clock.runFor(10000);
 await t.locator("#tests-panel").screenshot({ path: OUT + "18_test_cases.png" });
 await t.locator("#tc-list").screenshot({ path: OUT + "21_test_results.png" });
