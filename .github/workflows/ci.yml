@@ -32,3 +32,24 @@ jobs:
         with:
           node-version: 22
       - run: npm test
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Engine tests on simulated GY-61 signals
+        run: |
+          g++ -std=c++11 -O2 -Wall -Werror -I hardware/tremorsense_uno hardware/test/test_core.cpp -o test_core
+          ./test_core
+      - name: Compile sketches for the Uno
+        uses: arduino/compile-sketches@v1
+        with:
+          fqbn: arduino:avr:uno
+          libraries: |
+            - name: LiquidCrystal
+          sketch-paths: |
+            - hardware/step1_lcd
+            - hardware/step2_accel
+            - hardware/step3_motor
+            - hardware/step4_buzzer
+            - hardware/tremorsense_uno
