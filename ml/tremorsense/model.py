@@ -23,7 +23,10 @@ class Scaler:
 
     @classmethod
     def fit(cls, x):
-        return cls(x.mean(0), x.std(0) + 1e-9)
+        std = x.std(0)
+        # A constant input (e.g. gyro features on an accelerometer-only sensor)
+        # gets unit scale, so tiny float differences at run time stay tiny.
+        return cls(x.mean(0), np.where(std < 1e-6, 1.0, std + 1e-9))
 
     def __call__(self, x):
         return (x - self.mean) / self.std
