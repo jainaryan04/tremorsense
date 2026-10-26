@@ -1,5 +1,5 @@
 // Offline support: network first so updates show up, cache as the fallback.
-const CACHE = "tremorsense-v3";
+const CACHE = "tremorsense-v4";
 const ASSETS = [
   "./", "index.html", "styles.css", "icon.svg", "manifest.webmanifest", "model/model.json", "model/model_gy61.json",
   "js/app.js", "js/engine.js", "js/dsp.js", "js/model.js", "js/conformal.js", "js/phase.js",

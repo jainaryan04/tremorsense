@@ -21,6 +21,8 @@ export function parseLine(line) {
     return { kind: "uno", grade, freqHz: hz100 / 100, dispCm: cm100 / 100, moving: moving === 1, cue };
   }
   if (p[0] === "H") return { kind: "hello", name: p[1], version: p[2] };
+  // The standalone demo sketch (tremorsense_demo) doesn't take app commands.
+  if (/^(TremorSense demo|=== Test|Result: |Motor check)/.test(line.trim())) return { kind: "demo" };
   return null;
 }
 
@@ -50,18 +52,54 @@ export class UnoSource {
     this.conv = new CountsToAcc();
     this.samples = 0;
     this.closed = false;
+    this.demoSketch = false;
+    this.waiters = [];
   }
 
+  // Throws an Error with .reason "cancelled" (no port picked) or "busy"
+  // (another program, usually the Arduino IDE's Serial Monitor, has it).
   async start() {
-    this.port = await navigator.serial.requestPort();
-    await this.port.open({ baudRate: 115200 });
+    try {
+      this.port = await navigator.serial.requestPort();
+    } catch (e) {
+      throw Object.assign(new Error("No port picked"), { reason: "cancelled" });
+    }
+    try {
+      await this.port.open({ baudRate: 115200 });
+    } catch (e) {
+      this.port = null;
+      throw Object.assign(new Error(String(e && e.message)), { reason: "busy" });
+    }
     const enc = new TextEncoderStream();
-    this.writeDone = enc.readable.pipeTo(this.port.writable);
+    this.writeDone = enc.readable.pipeTo(this.port.writable).catch(() => {});
     this.writer = enc.writable.getWriter();
-    // The Uno resets when the port opens; give it a moment, then take control.
-    setTimeout(() => this.send("M,1"), 2000);
-    this.heartbeat = setInterval(() => this.send("M,1"), 2000);
+    // The Uno resets when the port opens. Nothing is sent until it has
+    // booted (its hello line, see ready()), so the bootloader never sees our
+    // commands; after that the heartbeat keeps it in app mode.
+    this.heartbeat = setInterval(() => { if (this.alive) this.send("M,1"); }, 2000);
     this.readLoop();
+  }
+
+  get alive() {
+    return !!(this.hello || this.samples || this.result);
+  }
+
+  // Resolves to "ok" once the TremorSense firmware answers, "demo" if the
+  // demo sketch is on the board instead, or "silent" after timeoutMs.
+  ready(timeoutMs = 4000) {
+    if (this.alive) return Promise.resolve("ok");
+    return new Promise((resolve) => {
+      const t = setTimeout(() => resolve(this.demoSketch ? "demo" : "silent"), timeoutMs);
+      this.waiters.push(() => {
+        clearTimeout(t);
+        resolve("ok");
+      });
+    });
+  }
+
+  wake() {
+    if (this.waiters.length) this.send("M,1");
+    this.waiters.splice(0).forEach((f) => f());
   }
 
   async readLoop() {
@@ -81,11 +119,17 @@ export class UnoSource {
           if (!msg) continue;
           if (msg.kind === "acc") {
             this.samples++;
+            this.wake();
             this.onSample({ acc: this.conv.step(msg.counts), gyro: [0, 0, 0] });
           } else if (msg.kind === "uno") {
+            this.result = msg;   // standalone results: the firmware is running
+            this.wake();
             this.onUno(msg);
           } else if (msg.kind === "hello") {
             this.hello = msg;
+            this.wake();
+          } else if (msg.kind === "demo") {
+            this.demoSketch = true;
           }
         }
       }

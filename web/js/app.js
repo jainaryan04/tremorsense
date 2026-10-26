@@ -262,22 +262,48 @@ function setTarget(deg) {
   store.setSetting("target", deg);
 }
 
+// Opens the Uno and waits until the TremorSense firmware answers. Returns
+// the UnoSource, or null after saying in the note what went wrong.
+async function connectUno(onSample) {
+  if (!serialSupported()) {
+    note(window.isSecureContext === false
+      ? `Chrome only allows USB on a secure page. Open http://localhost:8080 on this laptop instead of ${location.host}.`
+      : "The Arduino connects through Chrome or Edge on a laptop or desktop (Web Serial).");
+    return null;
+  }
+  const u = new UnoSource(onSample, { onStatus: note });
+  try {
+    await u.start();   // must run inside the click: the browser shows a port picker
+  } catch (e) {
+    note(e.reason === "busy"
+      ? "That port is busy. Close the Arduino IDE's Serial Monitor (or the whole IDE), then press the button again."
+      : "No port picked. Press the button again and choose the Uno (\"USB Serial\" or \"Arduino Uno\", with a COM number).");
+    return null;
+  }
+  note("Port open. Waiting for the Arduino to start…");
+  const r = await u.ready(5000);
+  if (r !== "ok") {
+    await u.stop();
+    note(r === "demo"
+      ? "The Arduino has the demo sketch on it. Upload tremorsense_uno (TremorSense_Arduino_firmware.zip) and try again."
+      : "The port opened but the Arduino didn't answer. Check that tremorsense_uno is uploaded and that you picked the Uno's port, then try again.");
+    return null;
+  }
+  // Show on the hardware that the link works.
+  u.lcdTop("App connected");
+  u.lcd(u.hello ? `TremorSense v${u.hello.version}` : "TremorSense");
+  u.beep(1800, 120);
+  u.pulse(210, 120);
+  return u;
+}
+
 async function startTests() {
   if (!unoModel) unoModel = await Model.load("model/model_gy61.json");
   if ($("tests-uno").checked) {
-    if (!serialSupported()) {
-      note("The Arduino connects through Chrome or Edge on a laptop. Running the test cases in the app only.");
-    } else {
-      // Only the motor, LCD and buzzer are used: live sensor data is ignored.
-      uno = new UnoSource(() => {}, { onStatus: note });
-      try {
-        await uno.start();
-        note("Arduino connected: the motor, LCD and buzzer follow the test cases.");
-      } catch (e) {
-        uno = null;
-        note("No Arduino selected, so the test cases run in the app only.");
-      }
-    }
+    // Only the motor, LCD and buzzer are used: live sensor data is ignored.
+    uno = await connectUno(() => {});
+    if (!uno) return false;
+    note("Arduino connected: the motor, LCD and buzzer follow the test cases.");
   }
   // Same settings as live Arduino data.
   engine.model = unoModel;
@@ -289,19 +315,9 @@ async function startTests() {
 }
 
 async function startUno() {
-  if (!serialSupported()) {
-    note("The Arduino connects through Chrome or Edge on a laptop or desktop (Web Serial).");
-    return false;
-  }
-  uno = new UnoSource((s) => engine.push(s), { onStatus: note });
-  try {
-    await uno.start();   // must run inside the click: the browser shows a port picker
-    if (!unoModel) unoModel = await Model.load("model/model_gy61.json");
-  } catch (e) {
-    uno = null;
-    note("No Arduino selected. Plug it in by USB, press Start and pick its port.");
-    return false;
-  }
+  uno = await connectUno((s) => engine.push(s));
+  if (!uno) return false;
+  if (!unoModel) unoModel = await Model.load("model/model_gy61.json");
   // The GY-61 model has no gyro inputs and is held like a phone; the Uno's
   // motor adds about 10 ms of USB delay to its 40 ms spin-up.
   engine.model = unoModel;
@@ -317,7 +333,7 @@ async function startUno() {
 
 async function start() {
   if (source === "tests") {
-    await startTests();
+    if (!(await startTests())) return;
   } else if (source === "uno") {
     if (!(await startUno())) return;
   } else if (source === "sensors") {
@@ -338,7 +354,8 @@ async function start() {
   if (source === "tests") {
     $("start").textContent = "Stop test cases";
     $("status-pill").textContent = "Test cases";
-    tests.begin();
+    // Leave "App connected" on the LCD for a moment before the first case.
+    setTimeout(() => { if (running && source === "tests") tests.begin(); }, uno ? 1500 : 0);
   }
   requestAnimationFrame(render);
 }

@@ -14,6 +14,7 @@ test("parses Uno lines", () => {
   assert.deepEqual(parseLine("A,338,341,405\r"), { kind: "acc", counts: [338, 341, 405] });
   assert.deepEqual(parseLine("G,3,531,412,0,3"), { kind: "uno", grade: 3, freqHz: 5.31, dispCm: 4.12, moving: false, cue: 3 });
   assert.equal(parseLine("H,TremorSense-Uno,1").kind, "hello");
+  assert.equal(parseLine("=== Test 1 of 12: Hand at rest ===").kind, "demo");
   assert.equal(parseLine("garbage"), null);
   assert.equal(parseLine("A,1,2"), null);
 });
