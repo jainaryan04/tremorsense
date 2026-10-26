@@ -279,6 +279,30 @@ the last column of the LCD). From then on:
 If the app stops sending (tab closed, cable pulled) the Uno goes back to
 standalone mode after 5 seconds.
 
+### Test cases in the app
+
+The app's **Test cases** source runs the same 12 cases as the demo sketch,
+through the app's full pipeline (GY-61 model, conformal safety gate,
+phase-locked cues), and uses the Uno only for the motor, LCD and buzzer.
+Keep `tremorsense_uno` on the Uno (not the demo sketch): the app needs its
+USB commands.
+
+1. Serve and open the app as above.
+2. Choose **Test cases**, keep **Use the Arduino for the motor, LCD and
+   buzzer** ticked, and tick **Speaker notes** if you want the lines to say.
+3. Press **Run test cases** and pick the Uno's port.
+
+Each case shows its input and expected result for 6 s, runs (the live card
+shows the grade, possible grades, activity and cue; the LCD shows
+`T3 G2 5.0Hz` / `Cue 2  set 2`; the motor pulses), then shows PASS or FAIL
+with what was measured for 6 s. **Pause**, **Repeat**, **Next** or a click on
+a case in the list control it. The list keeps every result, ready for a
+screenshot. Without the Arduino ticked it runs in the app alone.
+
+In the app, case 5 (12 cm at 3.5 Hz) sits at the border of grades 3 and 4:
+the model reports possible grades 3–4 and cues at 3, the lower end, which is
+the conformal gate at work. The same cases run in `web/test/testcases.test.mjs`.
+
 On held-out simulated subjects the GY-61 model grades 90.9% exactly and 100%
 within one grade, recognises activity 95.4% of the time, and its grade sets
 cover the true grade 98.9% of the time at α = 0.01. Like every result in this
