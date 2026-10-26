@@ -2,7 +2,7 @@ import { Model } from "./model.js";
 import { Engine, FS } from "./engine.js";
 import { MotionSource, motionSupported, requestMotionPermission } from "./sensor.js";
 import { Simulator } from "./simulator.js";
-import { cue, canVibrate, confirmPulse, pulseMs, UNO_DUTY } from "./haptics.js";
+import { cue, canVibrate, confirmPulse, unoPulse } from "./haptics.js";
 import { UnoSource, serialSupported } from "./serial.js";
 import { Store } from "./store.js";
 import { CASES, caseSamples, Checker } from "./testcases.js";
@@ -489,7 +489,8 @@ async function init() {
     onCue: (intensity, f) => {
       if (tests.active) tests.pulse();
       if (uno) {
-        uno.pulse(UNO_DUTY[intensity] || 0, pulseMs(intensity, f));
+        const { duty, ms } = unoPulse(intensity, f);
+        uno.pulse(duty, ms);
         flash();
       } else {
         cue(intensity, f, flash);
