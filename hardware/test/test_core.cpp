@@ -20,6 +20,7 @@ static int failures = 0;
 
 struct Sim {
   float f = 5.0f, p2p_cm = 0, walk = 0, voluntary = 0;
+  bool handheld = false;   // irregular rhythm, changing size, slow tilting
   float dir[3] = {0.6f, 0.3f, 0.74f};
   std::mt19937 rng{1};
   float t = 0, phase = 0;
@@ -27,14 +28,22 @@ struct Sim {
   // One sample of ADC counts, with the sensor's +-3.6 g range and 10-bit ADC.
   void sample(int out[3]) {
     std::normal_distribution<float> noise(0, 0.6f);
-    float amp = (p2p_cm / 100.0f / 2.0f) * powf(2 * M_PI * f, 2);  // m/s^2
-    phase += 2 * M_PI * f / ts::FS;
+    float fi = f, gain = 1, tilt = 0;
+    if (handheld) {
+      fi += 0.35f * sinf(2 * M_PI * 0.13f * t) + 0.2f * sinf(2 * M_PI * 0.31f * t);
+      gain += 0.3f * sinf(2 * M_PI * 0.4f * t);
+      tilt = 0.25f * sinf(2 * M_PI * 0.5f * t) + 0.15f * sinf(2 * M_PI * 0.9f * t);
+    }
+    float amp = gain * (p2p_cm / 100.0f / 2.0f) * powf(2 * M_PI * fi, 2);  // m/s^2
+    phase += 2 * M_PI * fi / ts::FS;
     float trem = amp * sinf(phase);
     float w = walk * (sinf(2 * M_PI * 1.8f * t) + 0.4f * sinf(2 * M_PI * 3.6f * t + 0.7f));
     float v = voluntary * sinf(2 * M_PI * 0.7f * t) + 0.5f * voluntary * sinf(2 * M_PI * 1.3f * t + 1);
-    float g[3] = {0, 0, 9.81f};
+    float g[3] = {9.81f * sinf(tilt), 0, 9.81f * cosf(tilt)};
     for (int i = 0; i < 3; i++) {
-      float a = g[i] + dir[i] * trem + (i == 0 ? w : i == 1 ? v : 0.5f * w);
+      // Walking bounces mostly sideways and up; arm movement goes every way.
+      const float vdir[3] = {0.5f, 0.6f, 0.62f};
+      float a = g[i] + dir[i] * trem + (i == 0 ? w : i == 1 ? 0 : 0.5f * w) + vdir[i] * v;
       float gs = fmaxf(-3.6f, fminf(3.6f, a / 9.81f));
       float volts = 1.65f + 0.33f * gs;
       int c = (int)lroundf(volts / 5.0f * 1023 + noise(rng));
@@ -83,8 +92,29 @@ int main() {
     s.f = 4.0f;
     s.p2p_cm = 14.0f;
     ts::Result r = run(s, 12);
-    printf("saturating 14 cm at 4 Hz -> grade %d (d %.1f cm)\n", r.grade, r.disp_cm);
+    printf("saturating 14 cm at 4 Hz -> grade %d (d %.1f cm), cue %d\n", r.grade, r.disp_cm, r.cue);
     CHECK(r.grade >= 3, "saturated tremor graded %d", r.grade);
+    CHECK(r.cue >= 3, "saturated tremor not cued (cue %d)", r.cue);
+  }
+
+  // Shaking the sensor by hand: irregular, tilting, but clearly rhythmic.
+  for (float p2p : {1.5f, 2.5f, 4.0f, 7.0f}) {
+    Sim s;
+    s.f = 4.5f;
+    s.p2p_cm = p2p;
+    s.handheld = true;
+    ts::Engine e;
+    int cued = 0, blocks = 0;
+    int c[3];
+    for (int i = 0; i < 30 * 50; i++) {
+      s.sample(c);
+      if (e.push(c[0], c[1], c[2]) && i > 6 * 50) {
+        blocks++;
+        cued += e.result().cue > 0;
+      }
+    }
+    printf("hand-shaken %.1f cm at ~4.5 Hz -> cue in %d of %d blocks (low %.2f, tremor %.2f)\n", p2p, cued, blocks, e.diag_low(), e.diag_tremor());
+    CHECK(cued >= blocks * 3 / 4, "hand-shaken tremor cued in only %d of %d blocks", cued, blocks);
   }
 
   // Walking or using the hand pauses cueing, even with tremor present.
