@@ -28,9 +28,11 @@ const int K_MIN = 1, K_MAX = 24;    // 0.5 .. 12 Hz
 const int K_TREMOR_MIN = 6;         // 3 Hz
 const int K_LOW_MAX = 5;            // 0.5 .. 2.5 Hz is voluntary movement / gait
 const int NK = K_MAX - K_MIN + 1;
+const int NLOW = K_LOW_MAX - K_MIN + 1;
 
 // ADXL335 on a GY-61 board: about 0.33 V per g; Uno ADC: 5 V / 1023 counts.
 const float G_PER_COUNT = (5.0f / 1023.0f) / 0.33f;
+const float ZERO_G_COUNTS = 1.65f / 5.0f * 1023.0f;   // ~338
 const float MS2_PER_COUNT = 9.81f * G_PER_COUNT;
 
 // UPDRS 3.17 / 3.18 amplitude bands, peak-to-peak cm.
@@ -49,6 +51,7 @@ class Engine {
   float latency_s = 0.04f;    // motor spin-up time
   float min_prominence = 0.25f;
   float move_var = 0.5f;      // (m/s^2)^2 below 3 Hz, about 0.7 m/s^2 RMS
+  float move_ratio = 0.5f;    // per-axis movement must also rival the tremor
 
   Engine() { reset(); }
 
@@ -56,6 +59,9 @@ class Engine {
     n_ = 0;
     primed_ = 0;
     for (int a = 0; a < 3; a++) mean_[a] = NAN;
+    mean_mag_ = NAN;
+    for (int i = 0; i < 3; i++)
+      for (int j = 0; j < 2; j++) lp_[i][j][0] = lp_[i][j][1] = lp_[i][j][2] = lp_[i][j][3] = NAN;
     clear_block();
     for (int i = 0; i < 3; i++) hist_[i] = 0;
     res_ = {0, 0, 0, false, 0};
@@ -80,6 +86,20 @@ class Engine {
       mean_[i] += 0.02f * (c[i] - mean_[i]);
       a[i] = (c[i] - mean_[i]) * MS2_PER_COUNT;
     }
+    // Size of the slow part (< 2.5 Hz) of the total acceleration, gravity
+    // included. Tilting the hand only turns gravity, so it leaves this almost
+    // unchanged; walking and moving the arm change it. Low-passing first
+    // keeps the tremor itself out of it.
+    float mag2 = 0;
+    for (int i = 0; i < 3; i++) {
+      float v = lowpass(i, (c[i] - ZERO_G_COUNTS) * MS2_PER_COUNT);
+      mag2 += v * v;
+    }
+    float mag = sqrtf(mag2);
+    if (isnan(mean_mag_)) mean_mag_ = mag;
+    mean_mag_ += 0.02f * (mag - mean_mag_);
+    float m = mag - mean_mag_;
+
     t_ += 1.0f / FS;
     track_phase(a[axis_]);
 
@@ -90,6 +110,11 @@ class Engine {
         s2_[k][i] = s1_[k][i];
         s1_[k][i] = s;
       }
+    }
+    for (int k = 0; k < NLOW; k++) {
+      float s = m * w + coef_[k] * ms1_[k] - ms2_[k];
+      ms2_[k] = ms1_[k];
+      ms1_[k] = s;
     }
     if (++n_ < N) return false;
     finish_block();
@@ -122,6 +147,12 @@ class Engine {
   }
 
   const Result& result() const { return res_; }
+  // Last block's inputs to the decision, for the serial log.
+  float diag_low() const { return diag_low_; }
+  float diag_tremor() const { return diag_tremor_; }
+  float diag_prominence() const { return diag_prominence_; }
+  // Band-passed tremor on the dominant axis (m/s^2), the signal the cues lock to.
+  float phase_signal() const { return y1_; }
   float clock() const { return t_; }
 
  private:
@@ -129,10 +160,30 @@ class Engine {
   float s1_[NK][3], s2_[NK][3];
   float coef_[NK];
   float mean_[3];
+  float mean_mag_;
+  float ms1_[NLOW], ms2_[NLOW];   // Goertzel state for the magnitude, low bins
+  float lp_[3][2][4];             // two cascaded low-pass biquads per axis: x1 x2 y1 y2
+
+  // Butterworth low-pass at 2.5 Hz (fs 50 Hz), applied twice (4th order).
+  float lowpass(int axis, float x) {
+    const float b0 = 0.020083f, b1 = 0.040167f, b2 = 0.020083f, a1 = -1.561018f, a2 = 0.641352f;
+    for (int j = 0; j < 2; j++) {
+      float* s = lp_[axis][j];
+      if (isnan(s[0])) s[0] = s[1] = s[2] = s[3] = x;   // start settled
+      float y = b0 * x + b1 * s[0] + b2 * s[1] - a1 * s[2] - a2 * s[3];
+      s[1] = s[0];
+      s[0] = x;
+      s[3] = s[2];
+      s[2] = y;
+      x = y;
+    }
+    return x;
+  }
   int n_;
   uint8_t primed_;
   uint8_t hist_[3];
   Result res_;
+  float diag_low_ = 0, diag_tremor_ = 0, diag_prominence_ = 0;
 
   // Phase tracking.
   float f_track_;
@@ -148,6 +199,7 @@ class Engine {
       coef_[k] = 2.0f * cosf(2.0f * (float)M_PI * (k + K_MIN) / N);
       for (int i = 0; i < 3; i++) s1_[k][i] = s2_[k][i] = 0;
     }
+    for (int k = 0; k < NLOW; k++) ms1_[k] = ms2_[k] = 0;
   }
 
   // |X_k|^2 for bin k on axis i, from the Goertzel state.
@@ -171,8 +223,11 @@ class Engine {
       band += P[k];
       if (P[k] > P[kp]) kp = k;
     }
-    float low = 0;
-    for (int k = 0; k <= K_LOW_MAX - K_MIN; k++) low += P[k];
+    float low = 0, mag_low = 0;
+    for (int k = 0; k < NLOW; k++) {
+      low += P[k];
+      mag_low += ms1_[k] * ms1_[k] + ms2_[k] * ms2_[k] - coef_[k] * ms1_[k] * ms2_[k];
+    }
 
     // Sub-bin peak frequency by parabolic interpolation on log power.
     float delta = 0;
@@ -189,6 +244,7 @@ class Engine {
       if (k >= 0 && k < NK) peak += P[k];
     float var_tremor = peak * to_var;
     float var_low = low * to_var;
+    float var_mag_low = mag_low * to_var;
     float prominence = band > 0 ? peak / band : 0;
 
     float amp = sqrtf(2.0f * var_tremor);                  // m/s^2
@@ -200,9 +256,11 @@ class Engine {
       for (int b = 0; b < 4; b++)
         if (disp_cm >= BAND_CM[b]) grade = b + 1;
 
-    // Voluntary movement, walking and posture changes put their power below
-    // 3 Hz. A still hand, even with strong tremor, has almost none there.
-    bool moving = var_low > move_var;
+    // Voluntary movement and walking put power below 3 Hz into the size of
+    // the acceleration. A resting hand with tremor also tilts slowly, which
+    // shows up below 3 Hz on each axis but not in the size, so per-axis
+    // power only counts when it rivals the tremor itself.
+    bool moving = var_mag_low > move_var || (var_low > move_var && var_low > move_ratio * var_tremor);
 
     // Dominant axis at the peak, for phase tracking.
     for (int i = 0; i < 3; i++)
@@ -229,6 +287,9 @@ class Engine {
     if (decision && agree >= 2) cue = weakest;
 
     res_ = {grade, f, disp_cm, moving, cue};
+    diag_low_ = var_mag_low;
+    diag_tremor_ = var_tremor;
+    diag_prominence_ = prominence;
   }
 
   // RBJ constant-0-dB band-pass, Q = 2: zero phase at the centre frequency, so
