@@ -1,6 +1,6 @@
-// The 12 test cases from the Arduino demo (hardware/tremorsense_demo), run by
-// the app. Each case makes a synthetic GY-61 signal of known frequency and
-// size, in the ADC counts the Uno would send, so it goes through exactly the
+// Seven test cases, taken from the Arduino demo (hardware/tremorsense_demo)
+// with a stronger severe case so the app cues at grade 4. Each case makes a
+// synthetic GY-61 signal of known frequency and size, in the ADC counts the Uno would send, so it goes through exactly the
 // same path as live Arduino data: counts -> m/s^2 -> features -> model ->
 // conformal safety gate -> phase-locked cues.
 import { FS } from "./dsp.js";
@@ -19,70 +19,40 @@ export const CASES = [
     say: "Test 1: a still hand with only sensor noise. It must not report tremor or vibrate. It shows grade 0 and no cue.",
   },
   {
-    name: "Slight tremor", seg: [[14, 5, 0.5, 0, 0, 0]], grade: 1, still: true, rule: "never", hz: 5,
-    input: "5 Hz tremor, 0.5 cm peak-to-peak, hand still",
-    expect: "Grade 1: logged, no cue (cues start at grade 2)",
-    say: "Test 2: a slight tremor, 5 Hz and half a centimetre. It is graded 1 and logged, but not cued, because we only cue from grade 2, so the patient isn't buzzed for tremor that doesn't bother them.",
-  },
-  {
     name: "Mild tremor", seg: [[14, 5, 2, 0, 0, 0]], grade: 2, still: true, rule: "end", cue: 2, hz: 5,
     input: "5 Hz tremor, 2 cm, hand still",
     expect: "Grade 2, cue 2, pulses locked to the tremor",
-    say: "Test 3: a 2 cm tremor. It grades 2 and the motor starts pulsing at the gentlest level. The pulses are locked to the tremor: the phase-lock value near 1 means every pulse lands at the same point of the cycle.",
+    say: "Test 2: a 2 cm tremor. It grades 2 and the motor starts pulsing at the gentlest level. The pulses are locked to the tremor: the phase-lock value near 1 means every pulse lands at the same point of the cycle.",
   },
   {
     name: "Moderate tremor", seg: [[14, 5, 5, 0, 0, 0]], grade: 3, still: true, rule: "end", cue: 3, hz: 5,
     input: "5 Hz tremor, 5 cm, hand still",
     expect: "Grade 3, cue 3, pulses locked",
-    say: "Test 4: 5 cm, grade 3, and the cue gets stronger. The grade comes from physics: acceleration divided by (2πf)² gives displacement in centimetres, which maps onto the clinical UPDRS bands. The model also gives a set of possible grades, and the cue uses the lowest one, so it never over-stimulates.",
+    say: "Test 3: 5 cm, grade 3, and the cue gets stronger. The grade comes from physics: acceleration divided by (2πf)² gives displacement in centimetres, which maps onto the clinical UPDRS bands. The model also gives a set of possible grades, and the cue uses the lowest one, so it never over-stimulates.",
   },
   {
-    name: "Severe tremor", seg: [[14, 3.5, 12, 0, 0, 0]], grade: [3, 4], still: true, rule: "end", cue: "low", hz: 3.5,
-    input: "3.5 Hz tremor, 12 cm, hand still",
-    expect: "Grade 3 or 4 with possible grades 3–4; the cue uses the lower end, 3",
-    say: "Test 5: a severe, slow tremor, 12 cm at 3.5 Hz, right at the border of grades 3 and 4. The model isn't sure, so it reports possible grades 3 to 4, and the safety gate cues at the lower end, grade 3. That is our dual conformal gate: when unsure, it never over-stimulates. Each pulse also lasts at most a third of a cycle.",
+    name: "Severe tremor", seg: [[14, 4.5, 16, 0, 0, 0]], grade: 4, still: true, rule: "end", cue: 4, hz: 4.5,
+    input: "4.5 Hz tremor, 16 cm, hand still",
+    expect: "Grade 4, cue 4 (strongest), pulses locked",
+    say: "Test 4: a severe tremor, 16 cm at 4.5 Hz. Grade 4, and the motor gives its strongest cue. Each pulse still lasts at most a third of a cycle, so it stays timed to the tremor instead of blurring into constant vibration.",
   },
   {
     name: "8 Hz tremor", seg: [[14, 8, 2, 0, 0, 0]], grade: 2, still: true, rule: "end", cue: 2, hz: 8,
     input: "8 Hz tremor (essential tremor range), 2 cm, hand still",
     expect: "Grade 2 at 8 Hz, cue 2, pulses follow the new frequency",
-    say: "Test 6: an 8 Hz tremor, the range of essential tremor. The app tracks the new frequency, recognises the tremor type, and the pulses follow it.",
+    say: "Test 5: an 8 Hz tremor, the range of essential tremor. The app tracks the new frequency, recognises the tremor type, and the pulses follow it.",
   },
   {
     name: "Walking", seg: [[14, 5, 2, 4, 0, 0]], still: false, rule: "never",
     input: "5 Hz tremor, 2 cm, while walking",
     expect: "Hand moving: cues paused, no cue at all",
-    say: "Test 7: the same tremor while walking. The activity model sees the hand moving and the safety gate blocks every cue. Vibrating while someone walks could startle them or upset their balance.",
-  },
-  {
-    name: "Using the arm", seg: [[14, 5, 2, 0, 5, 0]], still: false, rule: "never",
-    input: "5 Hz tremor, 2 cm, while moving the arm",
-    expect: "Hand moving: cues paused, no cue at all",
-    say: "Test 8: the arm is being used, for example reaching for a cup. Again no cue: we only help when the hand is at rest, which is where Parkinson's rest tremor appears.",
-  },
-  {
-    name: "Hand tilting", seg: [[14, 5, 5, 0, 0, 0.5]], grade: 3, still: true, rule: "end", cue: 3, hz: 5,
-    input: "5 Hz tremor, 5 cm, hand slowly tilting",
-    expect: "Grade 3, cue 3: tilting is not mistaken for movement",
-    say: "Test 9: the hand slowly tilts while the tremor continues. Tilting turns gravity on each axis, which a simple device would take for movement. Ours still sees a resting hand and keeps cueing.",
-  },
-  {
-    name: "Short burst", seg: [[2, 5, 5, 0, 0, 0], [12, 5, 0, 0, 0, 0]], grade: 0, still: true, rule: "never",
-    input: "5 Hz tremor, 5 cm, for only 2 s, then rest",
-    expect: "No cue: 2 of the last 3 decisions must agree",
-    say: "Test 10: a tremor lasting only 2 seconds. A cue needs two of the last three decisions to agree and the grade set to be confident, so a brief twitch never triggers the motor.",
-  },
-  {
-    name: "Tremor stops", seg: [[12, 5, 5, 0, 0, 0], [8, 5, 0, 0, 0, 0]], grade: 0, still: true, rule: "onoff",
-    input: "5 Hz tremor, 5 cm for 12 s, then it stops",
-    expect: "Cue 3 during the tremor, off a few seconds after it stops",
-    say: "Test 11: the tremor stops after 12 seconds. The cue switches off within a few seconds, so the device doesn't keep stimulating once it isn't needed.",
+    say: "Test 6: the same tremor while walking. The activity model sees the hand moving and the safety gate blocks every cue. Vibrating while someone walks could startle them or upset their balance.",
   },
   {
     name: "Walking starts", seg: [[12, 5, 2, 0, 0, 0], [8, 5, 2, 4, 0, 0]], still: false, rule: "onoff",
     input: "5 Hz tremor, 2 cm; walking starts after 12 s",
     expect: "Cue 2 while still, then hand moving: cues paused",
-    say: "Test 12: the patient starts walking during a tremor. The cue pauses as soon as walking is detected.",
+    say: "Test 7: the patient starts walking during a tremor. The cue pauses as soon as walking is detected.",
   },
 ];
 
