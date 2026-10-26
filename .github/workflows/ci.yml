@@ -41,6 +41,12 @@ jobs:
         run: |
           g++ -std=c++11 -O2 -Wall -Werror -I hardware/tremorsense_uno hardware/test/test_core.cpp -o test_core
           ./test_core
+      - name: Demo test cases all pass
+        run: |
+          cmp hardware/tremorsense_uno/tremor_core.h hardware/tremorsense_demo/tremor_core.h
+          cmp hardware/tremorsense_uno/pins.h hardware/tremorsense_demo/pins.h
+          g++ -std=c++11 -O2 -Wall -Werror -I hardware/tremorsense_demo hardware/test/test_demo.cpp -o test_demo
+          ./test_demo
       - name: Compile sketches for the Uno
         uses: arduino/compile-sketches@v1
         with:
@@ -53,3 +59,4 @@ jobs:
             - hardware/step3_motor
             - hardware/step4_buzzer
             - hardware/tremorsense_uno
+            - hardware/tremorsense_demo
