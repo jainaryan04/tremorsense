@@ -4,7 +4,8 @@
 import { mkdirSync } from "node:fs";
 
 const PW = process.env.PLAYWRIGHT_MODULE || "playwright";
-const { chromium } = await import(PW);
+const pw = await import(PW);
+const { chromium } = pw.default ?? pw;
 const URL_ = process.env.APP_URL || "http://localhost:8765/";
 const OUT = new URL("../../docs/screenshots/", import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
@@ -20,7 +21,7 @@ async function phone(scheme = "light") {
   return p;
 }
 
-const card = (p, n) => p.locator("main > section").nth(n);
+const card = (p, n) => p.locator("main > section:visible").nth(n);
 const wait = (p, s) => p.waitForTimeout(s * 1000);
 
 let p = await phone();
@@ -88,5 +89,33 @@ await d.click('[data-grade="2"]');
 await d.click("#start");
 await d.waitForTimeout(8000);
 await d.screenshot({ path: OUT + "16_desktop.png" });
+
+// Test cases (app only, no Arduino), run on a fast-forwarded clock. Each case
+// shows for 6 s, runs for 14 s (the last one 20 s) and shows its result for 6 s.
+const t = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3 });
+await t.clock.install();
+await t.goto(URL_);
+await t.evaluate(() => localStorage.clear());
+await t.reload();
+await t.waitForTimeout(300);
+await t.addStyleTag({ content: "#flash { display: none }" });
+await t.click('[data-source="tests"]');
+await t.uncheck("#tests-uno");
+await t.click("#start");
+await t.waitForTimeout(300);
+const CASE_S = 26;
+async function caseShot(name, at) {
+  const now = await t.evaluate(() => performance.now());
+  await t.clock.runFor(Math.max(0, at * 1000 - now + 300));
+  await card(t, 1).screenshot({ path: OUT + name.replace(".png", "_card.png") });
+  await t.locator(".tc-now").screenshot({ path: OUT + name.replace(".png", "_case.png") });
+}
+await caseShot("19_test_grade4.png", 3 * CASE_S + 6 + 12);
+await caseShot("20_test_walking.png", 5 * CASE_S + 6 + 12);
+for (let k = 0; k < 6; k++) await t.clock.runFor(10000);
+await t.locator("#tests-panel").screenshot({ path: OUT + "18_test_cases.png" });
+await t.locator("#tc-list").screenshot({ path: OUT + "21_test_results.png" });
+await t.close();
+
 await browser.close();
 console.log("screenshots in", OUT);
